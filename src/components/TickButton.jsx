@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 function TickButton({ routeId }) {
   const [nutzer, setNutzer] = useState(null)
   const [tick, setTick] = useState(null)
+  const [rating, setRating] = useState(null)
   const [zeigeModal, setZeigeModal] = useState(false)
   const [gewaehlterTick, setGewaehlterTick] = useState(null)
   const [sterne, setSterne] = useState(0)
@@ -11,7 +12,7 @@ function TickButton({ routeId }) {
   const [kommentar, setKommentar] = useState('')
   const [laden, setLaden] = useState(false)
 
-  const grade = ['4A', '4B', '4C', '5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A']
+  const grade = ['?', '4A', '4B', '4C', '5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A']
 
   useEffect(() => {
     async function datenLaden() {
@@ -19,13 +20,21 @@ function TickButton({ routeId }) {
       setNutzer(session?.user ?? null)
 
       if (session?.user) {
-        const { data } = await supabase
-          .from('ticks')
-          .select('*')
-          .eq('route_id', routeId)
-          .eq('user_id', session.user.id)
-          .single()
-        setTick(data)
+        const { data: tickData } = await supabase
+          .from('ticks').select('*')
+          .eq('route_id', routeId).eq('user_id', session.user.id).single()
+        setTick(tickData)
+
+        const { data: ratingData } = await supabase
+          .from('route_ratings').select('*')
+          .eq('route_id', routeId).eq('user_id', session.user.id).single()
+        setRating(ratingData)
+
+        if (tickData) setGewaehlterTick(tickData.tick_type)
+        if (ratingData) {
+          setSterne(ratingData.stars || 0)
+          setGrad(ratingData.community_grade || '')
+        }
       }
     }
     datenLaden()
@@ -47,21 +56,40 @@ function TickButton({ routeId }) {
     if (!gewaehlterTick) return
     setLaden(true)
 
-    const { data } = await supabase.from('ticks').insert({
-      route_id: routeId,
-      user_id: nutzer.id,
-      tick_type: gewaehlterTick
-    }).select().single()
+    // Tick speichern oder updaten
+    if (tick) {
+      await supabase.from('ticks').update({ tick_type: gewaehlterTick }).eq('id', tick.id)
+      setTick({ ...tick, tick_type: gewaehlterTick })
+    } else {
+      const { data } = await supabase.from('ticks').insert({
+        route_id: routeId,
+        user_id: nutzer.id,
+        tick_type: gewaehlterTick
+      }).select().single()
+      setTick(data)
+    }
 
+    // Kommentar speichern
     if (kommentar.trim()) {
       await supabase.from('comments').insert({
         route_id: routeId,
         user_id: nutzer.id,
         text: kommentar.trim()
       })
+      setKommentar('')
     }
 
-    setTick(data)
+    // Bewertung speichern
+    if (sterne > 0 || grad) {
+      await supabase.from('route_ratings').upsert({
+        route_id: routeId,
+        user_id: nutzer.id,
+        stars: sterne || null,
+        community_grade: grad || null
+      }, { onConflict: 'user_id,route_id' })
+      setRating({ stars: sterne, community_grade: grad })
+    }
+
     modalSchliessen()
     setLaden(false)
   }
@@ -74,6 +102,7 @@ function TickButton({ routeId }) {
     setSterne(0)
     setGrad('')
     setKommentar('')
+    modalSchliessen()
     setLaden(false)
   }
 
@@ -81,29 +110,23 @@ function TickButton({ routeId }) {
     return <span style={{ color: '#666', fontSize: '0.85rem' }}>Login zum Ticken</span>
   }
 
-  if (tick) {
-    return (
-      <button
-        className="btn"
-        style={{ background: '#00c851' }}
-        onClick={tickLoeschen}
-        disabled={laden}
-      >
-        {tick.tick_type === 'flash' ? '⚡ Flash' :
-         tick.tick_type === 'second_try' ? '2️⃣ 2. Versuch' : '✅ Geschafft'}
-      </button>
-    )
-  }
-
   return (
     <>
-      <button className="btn" onClick={modalOeffnen}>
-        Geschafft!
+      <button
+        className="btn"
+        style={{ background: tick ? '#00c851' : undefined }}
+        onClick={modalOeffnen}
+      >
+        {tick ? (
+          tick.tick_type === 'flash' ? '⚡ Flash' :
+          tick.tick_type === 'second_try' ? '2️⃣ 2. Versuch' : '✅ Geschafft'
+        ) : 'Geschafft!'}
       </button>
 
       {zeigeModal && (
         <div
           onClick={modalSchliessen}
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.8)',
@@ -122,7 +145,22 @@ function TickButton({ routeId }) {
               pointerEvents: 'all'
             }}
           >
-            <h2 style={{ marginBottom: '1.5rem' }}>🎉 Route geschafft!</h2>
+            {/* Header mit Zurück Pfeil */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+              <button
+                onClick={modalSchliessen}
+                style={{
+                  background: 'transparent', border: 'none',
+                  color: '#aaa', cursor: 'pointer', fontSize: '1.5rem',
+                  padding: '0', lineHeight: 1
+                }}
+              >
+                ←
+              </button>
+              <h2 style={{ margin: 0 }}>
+                {tick ? '✏️ Bewertung bearbeiten' : '🎉 Route geschafft!'}
+              </h2>
+            </div>
 
             {/* Tick Art */}
             <p style={{ marginBottom: '0.75rem', color: '#aaa' }}>Wie hast du sie geschafft? *</p>
@@ -161,9 +199,7 @@ function TickButton({ routeId }) {
                     color: stern <= sterne ? '#FFD700' : '#333',
                     transition: 'color 0.2s'
                   }}
-                >
-                  ★
-                </span>
+                >★</span>
               ))}
             </div>
 
@@ -173,8 +209,7 @@ function TickButton({ routeId }) {
               display: 'flex', gap: '0.5rem',
               overflowX: 'auto', paddingBottom: '0.5rem',
               marginBottom: '1.5rem',
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#ff6b00 #2a2a2a'
+              scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a'
             }}>
               {grade.map(g => (
                 <span
@@ -188,9 +223,7 @@ function TickButton({ routeId }) {
                     fontSize: '0.85rem', whiteSpace: 'nowrap',
                     transition: 'all 0.2s', flexShrink: 0
                   }}
-                >
-                  {g}
-                </span>
+                >{g}</span>
               ))}
             </div>
 
@@ -212,20 +245,23 @@ function TickButton({ routeId }) {
 
             {/* Buttons */}
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button
-                className="btn btn-outline"
-                style={{ flex: 1 }}
-                onClick={modalSchliessen}
-              >
-                Abbrechen
-              </button>
+              {tick && (
+                <button
+                  className="btn btn-outline"
+                  style={{ flex: 1, borderColor: '#ff4444', color: '#ff4444' }}
+                  onClick={tickLoeschen}
+                  disabled={laden}
+                >
+                  Tick löschen
+                </button>
+              )}
               <button
                 className="btn"
                 style={{ flex: 1, opacity: gewaehlterTick ? 1 : 0.5 }}
                 onClick={tickSpeichern}
                 disabled={!gewaehlterTick || laden}
               >
-                {laden ? 'Speichert...' : 'Speichern'}
+                {laden ? 'Speichert...' : tick ? 'Aktualisieren' : 'Speichern'}
               </button>
             </div>
           </div>

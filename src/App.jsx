@@ -11,6 +11,7 @@ import HalleErstellen from './pages/HalleErstellen'
 import RouteErstellen from './pages/RouteErstellen'
 import SektionErstellen from './pages/SektionErstellen'
 import SektionDetail from './pages/SektionDetail'
+import RouteDetail from './pages/RouteDetail'
 
 function App() {
   const [nutzer, setNutzer] = useState(null)
@@ -61,6 +62,7 @@ function App() {
         <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
         <Route path="/login" element={<Login />} />
         <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
+        <Route path="/route/:routeId" element={<RouteDetail />} />
       </Routes>
     </BrowserRouter>
   )
