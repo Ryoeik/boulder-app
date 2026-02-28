@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
+import TickButton from '../components/TickButton'
 
 const routen = [
   { id: 1, name: 'Gelber Riese', farbe: '#FFD700', grad: '6A', sterne: 4.2, ticks: 23 },
@@ -66,7 +67,7 @@ function HalleDetail() {
                 <span>✓ {route.ticks} Ticks</span>
               </div>
             </div>
-            <button className="btn">Geschafft!</button>
+            <TickButton routeId={route.id} />
           </div>
         ))}
       </div>
