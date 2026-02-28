@@ -4,6 +4,7 @@ import { supabase } from './supabase'
 import Startseite from './pages/Startseite'
 import Hallen from './pages/Hallen'
 import Profil from './pages/Profil'
+import NutzerProfil from './pages/NutzerProfil'
 import HalleDetail from './pages/HalleDetail'
 import Login from './pages/Login'
 import './index.css'
@@ -58,6 +59,7 @@ function App() {
         <Route path="/" element={<Startseite />} />
         <Route path="/hallen" element={<Hallen />} />
         <Route path="/profil" element={<Profil />} />
+        <Route path="/nutzer/:userId" element={<NutzerProfil />} />
         <Route path="/halle/:gymId" element={<HalleDetail />} />
         <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
         <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />

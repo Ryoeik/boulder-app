@@ -12,7 +12,12 @@ function HalleDetail() {
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
   const [nutzerRolle, setNutzerRolle] = useState(null)
-  const [vollbildBild, setVollbildBild] = useState(null)
+
+  // NEU: Vollbild-Viewer State
+  // vollbildSektion speichert die ganze Sektion (mit id, image_url, name)
+  // so können wir die passenden Routen + Marker dazu laden
+  const [vollbildSektion, setVollbildSektion] = useState(null)
+  const [vollbildRouten, setVollbildRouten] = useState([])
 
   const [filterSektion, setFilterSektion] = useState('alle')
   const [filterGradVon, setFilterGradVon] = useState('')
@@ -67,6 +72,22 @@ function HalleDetail() {
     }
     datenLaden()
   }, [id])
+
+  // NEU: Wenn der User auf ein Sektionsbild klickt, laden wir die
+  // Routen dieser Sektion mit ihren Marker-Koordinaten
+  async function vollbildOeffnen(sektion) {
+    // Routen dieser Sektion mit Markern aus der DB laden
+    const { data: routenMitMarkern } = await supabase
+      .from('routes')
+      .select('id, name, color, setter_grade, marker_x, marker_y, marker_width, marker_height')
+      .eq('section_id', sektion.id)
+      .eq('is_active', true)
+      // Nur Routen mit gesetzten Markern anzeigen
+      .not('marker_x', 'is', null)
+
+    setVollbildRouten(routenMitMarkern || [])
+    setVollbildSektion(sektion)
+  }
 
   const istAdmin = nutzerRolle === 'admin' || nutzerRolle === 'moderator'
 
@@ -125,15 +146,31 @@ function HalleDetail() {
                   transition: 'border-color 0.2s'
                 }}
               >
-                <img
-                  src={sektion.image_url}
-                  alt={sektion.name}
-                  onClick={e => { e.stopPropagation(); setVollbildBild(sektion.image_url) }}
-                  style={{
-                    width: '100%', height: '120px', objectFit: 'cover',
-                    display: 'block', cursor: 'zoom-in'
-                  }}
-                />
+                {/* 
+                  NEU: Das Bild hat jetzt einen eigenen onClick der den Vollbild-Viewer öffnet.
+                  e.stopPropagation() verhindert, dass gleichzeitig auch der Sektion-Filter
+                  ausgelöst wird (der ist auf dem äußeren div).
+                */}
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={sektion.image_url}
+                    alt={sektion.name}
+                    onClick={e => { e.stopPropagation(); vollbildOeffnen(sektion) }}
+                    style={{
+                      width: '100%', height: '120px', objectFit: 'cover',
+                      display: 'block', cursor: 'zoom-in'
+                    }}
+                  />
+                  {/* Kleines Hinweis-Icon dass das Bild anklickbar ist */}
+                  <div style={{
+                    position: 'absolute', bottom: '6px', right: '6px',
+                    background: 'rgba(0,0,0,0.6)', borderRadius: '4px',
+                    padding: '2px 5px', fontSize: '0.7rem', color: 'white',
+                    pointerEvents: 'none'
+                  }}>
+                    🔍 Wandplan
+                  </div>
+                </div>
                 <div style={{
                   padding: '0.5rem 0.75rem',
                   background: filterSektion === sektion.id ? 'rgba(255,107,0,0.15)' : '#1a1a1a'
@@ -261,37 +298,163 @@ function HalleDetail() {
         </div>
       )}
 
-      {/* Vollbild Viewer */}
-      {vollbildBild && (
+      {/* 
+        NEU: Interaktiver Vollbild-Wandplan
+        
+        Aufbau:
+        - Dunkler Overlay-Hintergrund (fixed, deckt alles ab)
+        - Zentriertes Bild mit position: relative
+        - Für jede Route mit Koordinaten: ein absolut positioniertes div
+          das als anklickbarer Rahmen funktioniert
+        - Klick auf Rahmen → navigate zur Routenseite
+        - Klick auf Hintergrund → Viewer schließen
+      */}
+      {vollbildSektion && (
         <div
-          onClick={() => setVollbildBild(null)}
+          onClick={() => setVollbildSektion(null)}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.95)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 9999, cursor: 'zoom-out', padding: '1rem'
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '1rem'
           }}
         >
-          <button
-            onClick={() => setVollbildBild(null)}
-            style={{
-              position: 'absolute', top: '1rem', right: '1rem',
-              background: 'rgba(255,255,255,0.1)', border: 'none',
-              color: 'white', borderRadius: '50%', width: '40px', height: '40px',
-              cursor: 'pointer', fontSize: '1.2rem'
-            }}
-          >✕</button>
-          <img
-            src={vollbildBild}
-            alt="Vollbild"
+          {/* Header: Sektionsname + Schließen-Button */}
+          <div style={{
+            width: '100%', maxWidth: '900px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: '0.75rem'
+          }}>
+            <h2 style={{ margin: 0, color: 'white' }}>
+              🏔️ {vollbildSektion.name}
+              <span style={{ fontSize: '0.85rem', color: '#aaa', marginLeft: '0.75rem', fontWeight: 'normal' }}>
+                {vollbildRouten.length > 0
+                  ? `${vollbildRouten.length} Route${vollbildRouten.length > 1 ? 'n' : ''} markiert`
+                  : 'Noch keine Routen markiert'}
+              </span>
+            </h2>
+            <button
+              onClick={() => setVollbildSektion(null)}
+              style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none',
+                color: 'white', borderRadius: '50%', width: '40px', height: '40px',
+                cursor: 'pointer', fontSize: '1.2rem', flexShrink: 0
+              }}
+            >✕</button>
+          </div>
+
+          {/* 
+            Bild-Container: position relative ist der Anker für alle Marker.
+            onClick stopPropagation verhindert, dass Klick aufs Bild den Viewer schließt.
+            Der Viewer schließt nur beim Klick auf den dunklen Hintergrund drumherum.
+          */}
+          <div
             onClick={e => e.stopPropagation()}
             style={{
-              maxWidth: '100%', maxHeight: '90vh',
-              objectFit: 'contain', borderRadius: '8px'
+              position: 'relative',
+              maxWidth: '900px',
+              width: '100%',
+              maxHeight: '80vh',
             }}
-          />
+          >
+            <img
+              src={vollbildSektion.image_url}
+              alt={vollbildSektion.name}
+              style={{
+                width: '100%',
+                maxHeight: '80vh',
+                objectFit: 'contain',
+                display: 'block',
+                borderRadius: '8px'
+              }}
+            />
+
+            {/* 
+              Routen-Rahmen: 
+              Für jede Route mit Marker-Koordinaten zeichnen wir ein absolut
+              positioniertes div. Die Koordinaten sind in Prozent gespeichert
+              (0-100), so funktioniert es auf jeder Bildschirmgröße.
+              
+              Hover-Effekt: background wird dunkler, damit der User sieht
+              dass es klickbar ist. Wir steuern das mit einem State.
+            */}
+            {vollbildRouten.map(route => (
+              <RoutenRahmen
+                key={route.id}
+                route={route}
+                onClick={() => navigate(`/route/${route.id}`)}
+              />
+            ))}
+          </div>
+
+          <p style={{ color: '#555', fontSize: '0.8rem', marginTop: '0.75rem' }}>
+            Klick außerhalb des Bildes zum Schließen
+          </p>
         </div>
       )}
+    </div>
+  )
+}
+
+/*
+  RoutenRahmen ist eine eigene kleine Komponente, damit wir den Hover-State
+  pro Rahmen verwalten können – ohne dass alle Rahmen gleichzeitig leuchten.
+  
+  CSS-Klassen können wir hier nicht gut nutzen (inline styles), deshalb
+  verwalten wir hover mit useState.
+*/
+function RoutenRahmen({ route, onClick }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'absolute',
+        // Die Koordinaten kommen direkt aus der DB (in %)
+        left: `${route.marker_x}%`,
+        top: `${route.marker_y}%`,
+        width: `${route.marker_width}%`,
+        height: `${route.marker_height}%`,
+        // Rahmen in der Grifffarbe der Route
+        border: `3px solid ${route.color}`,
+        borderRadius: '6px',
+        // Beim Hover: halbtransparenter Farbfleck, damit der User sieht was er anklickt
+        background: hovered ? `${route.color}44` : `${route.color}11`,
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+        transition: 'background 0.15s',
+        // zIndex damit der Label-Text über dem Bild liegt
+        zIndex: 10
+      }}
+    >
+      {/* 
+        Label: zeigt Routenname + Grad.
+        Erscheint immer (nicht nur beim Hover), damit der User
+        ohne Hover weiß welche Route wo ist.
+        Bei vielen Routen kann das überlappen – das ist ein bekannter
+        Trade-off bei Wandplänen.
+      */}
+      <div style={{
+        position: 'absolute',
+        bottom: '100%',
+        left: '0',
+        marginBottom: '3px',
+        background: route.color,
+        color: 'white',
+        fontSize: '0.7rem',
+        padding: '2px 6px',
+        borderRadius: '4px',
+        whiteSpace: 'nowrap',
+        // Schatten damit der Text auch auf hellem Bild lesbar ist
+        boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+        pointerEvents: 'none'
+      }}>
+        {route.name} · {route.setter_grade}
+      </div>
     </div>
   )
 }
