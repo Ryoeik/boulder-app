@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../supabase'
 import TickButton from '../components/TickButton'
@@ -12,7 +13,7 @@ const routen = [
 ]
 
 function HalleDetail() {
-  const { id } = useParams()
+  const { gymId: id } = useParams()
   const [halle, setHalle] = useState(null)
   const [laden, setLaden] = useState(true)
 
@@ -45,8 +46,16 @@ function HalleDetail() {
         {halle.is_certified && <span className="badge badge-green">✓ Zertifiziert</span>}
       </div>
       <p>📍 {halle.city}</p>
+      <Link
+            to={`/halle/${id}/sektionen`}
+             className="btn btn-outline"
+                style={{ marginTop: '1rem', display: 'inline-block' }}
+            >
+             Sektionen & Routen verwalten
+        </Link>
 
-      <h2 style={{ marginTop: '2rem' }}>Routen</h2>
+        <h2 style={{ marginTop: '2rem' }}>Routen</h2>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {routen.map(route => (
           <div key={route.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

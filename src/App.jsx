@@ -7,6 +7,10 @@ import Profil from './pages/Profil'
 import HalleDetail from './pages/HalleDetail'
 import Login from './pages/Login'
 import './index.css'
+import HalleErstellen from './pages/HalleErstellen'
+import RouteErstellen from './pages/RouteErstellen'
+import SektionErstellen from './pages/SektionErstellen'
+import SektionDetail from './pages/SektionDetail'
 
 function App() {
   const [nutzer, setNutzer] = useState(null)
@@ -52,8 +56,11 @@ function App() {
         <Route path="/" element={<Startseite />} />
         <Route path="/hallen" element={<Hallen />} />
         <Route path="/profil" element={<Profil />} />
-        <Route path="/halle/:id" element={<HalleDetail />} />
+        <Route path="/halle/:gymId" element={<HalleDetail />} />
+        <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
+        <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
       </Routes>
     </BrowserRouter>
   )
