@@ -3,18 +3,20 @@ import Startseite from './pages/Startseite'
 import Hallen from './pages/Hallen'
 import Profil from './pages/Profil'
 import HalleDetail from './pages/HalleDetail'
+import './index.css'
 
 function App() {
   return (
     <BrowserRouter>
-      {/* Navigation oben */}
-      <nav style={{ padding: '1rem', background: '#1a1a2e', display: 'flex', gap: '1rem' }}>
-        <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>🏠 Start</Link>
-        <Link to="/hallen" style={{ color: 'white', textDecoration: 'none' }}>🏟️ Hallen</Link>
-        <Link to="/profil" style={{ color: 'white', textDecoration: 'none' }}>👤 Profil</Link>
+      <nav className="navbar">
+        <Link to="/" className="navbar-logo">🧗 BoulderApp</Link>
+        <div className="navbar-links">
+          <Link to="/">Start</Link>
+          <Link to="/hallen">Hallen</Link>
+          <Link to="/profil">Profil</Link>
+        </div>
       </nav>
 
-      {/* Seiten */}
       <Routes>
         <Route path="/" element={<Startseite />} />
         <Route path="/hallen" element={<Hallen />} />
