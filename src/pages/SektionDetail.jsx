@@ -165,6 +165,14 @@ function SektionDetail() {
       <Link to={`/halle/${gymId}/sektionen`} style={{ color: '#aaa', textDecoration: 'none', fontSize: '0.9rem' }}>
         ← Zurück zu Sektionen
       </Link>
+      <Link
+        to={`/halle/${gymId}/sektion/${sektionId}/wandplan`}
+        className="btn btn-outline"
+        style={{ marginTop: '0.5rem', display: 'inline-block' }}
+    >
+        
+  🗺️ Wandplan bearbeiten
+</Link>
       <h1 style={{ marginTop: '0.5rem' }}>{sektion?.name}</h1>
       {sektion?.description && <p style={{ marginBottom: '1rem' }}>{sektion.description}</p>}
 

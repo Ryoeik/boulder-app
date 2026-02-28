@@ -12,6 +12,7 @@ function HalleDetail() {
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
   const [nutzerRolle, setNutzerRolle] = useState(null)
+  const [vollbildBild, setVollbildBild] = useState(null)
 
   const [filterSektion, setFilterSektion] = useState('alle')
   const [filterGradVon, setFilterGradVon] = useState('')
@@ -33,24 +34,23 @@ function HalleDetail() {
       const { data: routenData } = await supabase
         .from('routes').select('*').eq('gym_id', id).eq('is_active', true)
       setRouten(routenData || [])
-      const { data: ratingsData } = await supabase
-  .from('route_ratings')
-  .select('route_id, stars')
-  .in('route_id', (routenData || []).map(r => r.id))
 
-    const bewertungsMap = {}
-    const counts = {}
-        ;(ratingsData || []).forEach(r => {
-     if (!bewertungsMap[r.route_id]) { bewertungsMap[r.route_id] = 0; counts[r.route_id] = 0 }
+      const { data: ratingsData } = await supabase
+        .from('route_ratings')
+        .select('route_id, stars')
+        .in('route_id', (routenData || []).map(r => r.id))
+
+      const bewertungsMap = {}
+      const counts = {}
+      ;(ratingsData || []).forEach(r => {
+        if (!bewertungsMap[r.route_id]) { bewertungsMap[r.route_id] = 0; counts[r.route_id] = 0 }
         bewertungsMap[r.route_id] += r.stars
         counts[r.route_id]++
-     })
-        Object.keys(bewertungsMap).forEach(id => {
-     bewertungsMap[id] = (bewertungsMap[id] / counts[id]).toFixed(1)
-        })
-
-        setBewertungen(bewertungsMap)
-
+      })
+      Object.keys(bewertungsMap).forEach(id => {
+        bewertungsMap[id] = (bewertungsMap[id] / counts[id]).toFixed(1)
+      })
+      setBewertungen(bewertungsMap)
 
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
@@ -103,6 +103,50 @@ function HalleDetail() {
         >
           Sektionen & Routen verwalten
         </Link>
+      )}
+
+      {/* Sektionen Karussell */}
+      {sektionen.filter(s => s.image_url).length > 0 && (
+        <div style={{ marginTop: '1.5rem' }}>
+          <h2 style={{ marginBottom: '1rem' }}>🏔️ Wände</h2>
+          <div style={{
+            display: 'flex', gap: '1rem',
+            overflowX: 'auto', paddingBottom: '1rem',
+            scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a'
+          }}>
+            {sektionen.filter(s => s.image_url).map(sektion => (
+              <div
+                key={sektion.id}
+                onClick={() => setFilterSektion(sektion.id)}
+                style={{
+                  flexShrink: 0, width: '200px', cursor: 'pointer',
+                  borderRadius: '12px', overflow: 'hidden',
+                  border: `2px solid ${filterSektion === sektion.id ? '#ff6b00' : 'transparent'}`,
+                  transition: 'border-color 0.2s'
+                }}
+              >
+                <img
+                  src={sektion.image_url}
+                  alt={sektion.name}
+                  onClick={e => { e.stopPropagation(); setVollbildBild(sektion.image_url) }}
+                  style={{
+                    width: '100%', height: '120px', objectFit: 'cover',
+                    display: 'block', cursor: 'zoom-in'
+                  }}
+                />
+                <div style={{
+                  padding: '0.5rem 0.75rem',
+                  background: filterSektion === sektion.id ? 'rgba(255,107,0,0.15)' : '#1a1a1a'
+                }}>
+                  <strong style={{
+                    fontSize: '0.9rem',
+                    color: filterSektion === sektion.id ? '#ff6b00' : 'white'
+                  }}>{sektion.name}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Filterleiste */}
@@ -178,20 +222,17 @@ function HalleDetail() {
                 style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}
                 onClick={() => navigate(`/route/${route.id}`)}
               >
-                {/* Farbbalken */}
                 {route.image_url ? (
-                <img src={route.image_url} alt={route.name} style={{
+                  <img src={route.image_url} alt={route.name} style={{
                     width: '60px', height: '60px', objectFit: 'cover',
-                     borderRadius: '8px', flexShrink: 0
-        }} />
-) : (
-  <div style={{
-    width: '8px', alignSelf: 'stretch', borderRadius: '4px',
-    backgroundColor: route.color, flexShrink: 0
-  }} />
-)}
-
-                {/* Info */}
+                    borderRadius: '8px', flexShrink: 0
+                  }} />
+                ) : (
+                  <div style={{
+                    width: '8px', alignSelf: 'stretch', borderRadius: '4px',
+                    backgroundColor: route.color, flexShrink: 0
+                  }} />
+                )}
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong style={{ fontSize: '1.1rem', color: 'white' }}>{route.name}</strong>
@@ -206,19 +247,49 @@ function HalleDetail() {
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem' }}>
                     {sektion && <span style={{ fontSize: '0.8rem', color: '#666' }}>📍 {sektion.name}</span>}
                     {bewertungen[route.id] && (
-                    <span style={{ fontSize: '0.8rem', color: '#FFD700' }}>⭐ {bewertungen[route.id]}</span>
+                      <span style={{ fontSize: '0.8rem', color: '#FFD700' }}>⭐ {bewertungen[route.id]}</span>
                     )}
-                 <span style={{ fontSize: '0.8rem', color: '#666' }}>💬 Details ansehen</span>
+                    <span style={{ fontSize: '0.8rem', color: '#666' }}>💬 Details ansehen</span>
                   </div>
                 </div>
-
-                {/* Tick Button – stopPropagation verhindert Navigation */}
                 <div onClick={e => e.stopPropagation()}>
                   <TickButton routeId={route.id} />
                 </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Vollbild Viewer */}
+      {vollbildBild && (
+        <div
+          onClick={() => setVollbildBild(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.95)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, cursor: 'zoom-out', padding: '1rem'
+          }}
+        >
+          <button
+            onClick={() => setVollbildBild(null)}
+            style={{
+              position: 'absolute', top: '1rem', right: '1rem',
+              background: 'rgba(255,255,255,0.1)', border: 'none',
+              color: 'white', borderRadius: '50%', width: '40px', height: '40px',
+              cursor: 'pointer', fontSize: '1.2rem'
+            }}
+          >✕</button>
+          <img
+            src={vollbildBild}
+            alt="Vollbild"
+            onClick={e => e.stopPropagation()}
+            style={{
+              maxWidth: '100%', maxHeight: '90vh',
+              objectFit: 'contain', borderRadius: '8px'
+            }}
+          />
         </div>
       )}
     </div>
