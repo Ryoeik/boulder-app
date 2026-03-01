@@ -31,32 +31,24 @@ function Navbar() {
 
   return (
     <nav className="navbar">
-      <Link to="/" className="navbar-logo">🧗 BoulderApp</Link>
+      <Link to="/" className="navbar-logo">Toter Boulder</Link>
       <div className="navbar-links">
         <Link to="/">Start</Link>
         <Link to="/hallen">Hallen</Link>
-        {nutzer ? (
-          <>
-            <Link to="/profil">Profil</Link>
-            <span onClick={ausloggen} style={{ color: '#ff6b00', cursor: 'pointer' }}>
-              Ausloggen
-            </span>
-          </>
-        ) : (
-          <Link to="/login">Login</Link>
-        )}
 
+        {/* Menü Button */}
         <div ref={menuRef} style={{ position: 'relative' }}>
           <button
             onClick={() => setZeigeMenu(!zeigeMenu)}
             style={{
-              background: 'transparent', border: '1px solid #2a2a2a',
+              background: zeigeMenu ? 'rgba(255,107,0,0.15)' : 'transparent',
+              border: '1px solid #2a2a2a',
               color: 'white', borderRadius: '8px',
-              padding: '0.3rem 0.6rem', cursor: 'pointer',
-              fontSize: '1rem', lineHeight: 1
+              padding: '0.3rem 0.75rem', cursor: 'pointer',
+              fontSize: '0.9rem', lineHeight: 1
             }}
           >
-            ...
+            Menü
           </button>
 
           {zeigeMenu && (
@@ -67,6 +59,50 @@ function Navbar() {
               boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
               zIndex: 9999, overflow: 'hidden'
             }}>
+              {nutzer ? (
+                <>
+                  <Link
+                    to="/profil"
+                    onClick={() => setZeigeMenu(false)}
+                    style={{
+                      display: 'block', padding: '0.75rem 1rem',
+                      color: '#aaa', textDecoration: 'none',
+                      fontSize: '0.9rem', borderBottom: '1px solid #2a2a2a'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#2a2a2a'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    👤 Profil
+                  </Link>
+                  <div
+                    onClick={ausloggen}
+                    style={{
+                      display: 'block', padding: '0.75rem 1rem',
+                      color: '#ff6b00', textDecoration: 'none',
+                      fontSize: '0.9rem', borderBottom: '1px solid #2a2a2a',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#2a2a2a'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    🚪 Ausloggen
+                  </div>
+                </>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setZeigeMenu(false)}
+                  style={{
+                    display: 'block', padding: '0.75rem 1rem',
+                    color: '#aaa', textDecoration: 'none',
+                    fontSize: '0.9rem', borderBottom: '1px solid #2a2a2a'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#2a2a2a'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  🔑 Login
+                </Link>
+              )}
               <Link
                 to="/datenschutz"
                 onClick={() => setZeigeMenu(false)}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import TickButton from '../components/TickButton'
+import { farbName } from '../utils/farben'
 
 function HalleDetail() {
   const { gymId: id } = useParams()
@@ -257,15 +258,25 @@ function HalleDetail() {
                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', padding: '0.75rem' }}
                 onClick={() => navigate(`/route/${route.id}`)}
               >
-                {/* Farbblock – Routenfarbe */}
-                <div style={{
-                  width: '44px', height: '44px', borderRadius: '8px',
-                  backgroundColor: route.color, flexShrink: 0
-                }} />
+                {/* Routenbild oder Farbbalken */}
+                {route.image_url ? (
+                  <img src={route.image_url} alt={route.name} style={{
+                    width: '60px', height: '60px', objectFit: 'cover',
+                    borderRadius: '8px', flexShrink: 0
+                  }} />
+                ) : (
+                  <div style={{
+                    width: '8px', alignSelf: 'stretch', borderRadius: '4px',
+                    backgroundColor: route.color, flexShrink: 0
+                  }} />
+                )}
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {/* Farbe als Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: route.color, flexShrink: 0 }} />
+                    <strong style={{ color: 'white', fontSize: '0.95rem' }}>{farbName(route.color)}</strong>
                     <span style={{
                       background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
                       padding: '0.15rem 0.5rem', borderRadius: '20px',
@@ -273,6 +284,8 @@ function HalleDetail() {
                     }}>
                       {route.setter_grade}
                     </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {sektion && <span style={{ fontSize: '0.8rem', color: '#666' }}>📍 {sektion.name}</span>}
                     {bewertungen[route.id] && (
                       <span style={{ fontSize: '0.8rem', color: '#FFD700' }}>⭐ {bewertungen[route.id]}</span>
