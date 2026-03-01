@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import TickButton from '../components/TickButton'
@@ -12,7 +12,6 @@ function HalleDetail() {
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
   const [nutzerRolle, setNutzerRolle] = useState(null)
-  const [nutzerId, setNutzerId] = useState(null)
   const [mitgliedschaft, setMitgliedschaft] = useState(null)
   const [beitretenLaden, setBeitretenLaden] = useState(false)
   const [vollbildSektion, setVollbildSektion] = useState(null)
@@ -21,6 +20,14 @@ function HalleDetail() {
   const [filterGradVon, setFilterGradVon] = useState('')
   const [filterGradBis, setFilterGradBis] = useState('')
   const [filterSort, setFilterSort] = useState('neu')
+
+  // Pinch-to-Zoom State
+  const [zoom, setZoom] = useState(1)
+  const [panX, setPanX] = useState(0)
+  const [panY, setPanY] = useState(0)
+  const letzterPinch = useRef(null)
+  const letzterPan = useRef(null)
+  const bildContainerRef = useRef(null)
 
   const grade = ['4A', '4B', '4C', '5A', '5B', '5C', '6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A']
 
@@ -39,8 +46,7 @@ function HalleDetail() {
       setRouten(routenData || [])
 
       const { data: ratingsData } = await supabase
-        .from('route_ratings')
-        .select('route_id, stars')
+        .from('route_ratings').select('route_id, stars')
         .in('route_id', (routenData || []).map(r => r.id))
 
       const bewertungsMap = {}
@@ -50,17 +56,16 @@ function HalleDetail() {
         bewertungsMap[r.route_id] += r.stars
         counts[r.route_id]++
       })
-      Object.keys(bewertungsMap).forEach(gymId => {
-        bewertungsMap[gymId] = (bewertungsMap[gymId] / counts[gymId]).toFixed(1)
+      Object.keys(bewertungsMap).forEach(key => {
+        bewertungsMap[key] = (bewertungsMap[key] / counts[key]).toFixed(1)
       })
       setBewertungen(bewertungsMap)
 
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
-        setNutzerId(session.user.id)
         const { data: mitglied } = await supabase
           .from('gym_members').select('role')
-          .eq('gym_id', id).eq('user_id', session.user.id).single()
+          .eq('gym_id', id).eq('user_id', session.user.id).maybeSingle()
         setNutzerRolle(mitglied?.role || null)
         setMitgliedschaft(mitglied || null)
       }
@@ -70,7 +75,6 @@ function HalleDetail() {
     datenLaden()
   }, [id])
 
-  // ── Beitreten / Verlassen – jetzt korrekt INNERHALB der Komponente ───────────
   async function halleBetreten() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { navigate('/login'); return }
@@ -85,8 +89,7 @@ function HalleDetail() {
   async function halleVerlassen() {
     const { data: { session } } = await supabase.auth.getSession()
     setBeitretenLaden(true)
-    await supabase.from('gym_members')
-      .delete().eq('gym_id', id).eq('user_id', session.user.id)
+    await supabase.from('gym_members').delete().eq('gym_id', id).eq('user_id', session.user.id)
     setMitgliedschaft(null)
     setNutzerRolle(null)
     setBeitretenLaden(false)
@@ -100,6 +103,67 @@ function HalleDetail() {
       .not('marker_x', 'is', null)
     setVollbildRouten(routenMitMarkern || [])
     setVollbildSektion(sektion)
+    // Zoom zurücksetzen beim Öffnen
+    setZoom(1)
+    setPanX(0)
+    setPanY(0)
+  }
+
+  // ── Pinch-to-Zoom Touch Handler ───────────────────────────────────────────────
+  function abstandZwischenTouches(touches) {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  function mittelPunktZwischenTouches(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    }
+  }
+
+  function viewerTouchStart(e) {
+    if (e.touches.length === 2) {
+      // Pinch-Start: Abstand merken
+      letzterPinch.current = {
+        abstand: abstandZwischenTouches(e.touches),
+        zoom,
+        mittelX: mittelPunktZwischenTouches(e.touches).x,
+        mittelY: mittelPunktZwischenTouches(e.touches).y,
+      }
+      letzterPan.current = null
+    } else if (e.touches.length === 1 && zoom > 1) {
+      // Pan bei gezoomtem Bild
+      letzterPan.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY }
+    }
+  }
+
+  function viewerTouchMove(e) {
+    e.preventDefault()
+    if (e.touches.length === 2 && letzterPinch.current) {
+      // Pinch-Zoom berechnen
+      const neuerAbstand = abstandZwischenTouches(e.touches)
+      const skalierung = neuerAbstand / letzterPinch.current.abstand
+      const neuerZoom = Math.max(1, Math.min(5, letzterPinch.current.zoom * skalierung))
+      setZoom(neuerZoom)
+      // Bei Zoom=1 Pan zurücksetzen
+      if (neuerZoom === 1) { setPanX(0); setPanY(0) }
+    } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
+      // Pan
+      setPanX(e.touches[0].clientX - letzterPan.current.x)
+      setPanY(e.touches[0].clientY - letzterPan.current.y)
+    }
+  }
+
+  function viewerTouchEnd(e) {
+    if (e.touches.length < 2) letzterPinch.current = null
+    if (e.touches.length < 1) letzterPan.current = null
+  }
+
+  // Doppelklick zum Zoom zurücksetzen
+  function doppelklickReset() {
+    setZoom(1); setPanX(0); setPanY(0)
   }
 
   const istAdmin = nutzerRolle === 'admin' || nutzerRolle === 'moderator'
@@ -129,7 +193,6 @@ function HalleDetail() {
       </div>
       <p>📍 {halle.city}</p>
 
-      {/* Aktions-Buttons – alle in einer Zeile */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem' }}>
         {!istAdmin && (
           mitgliedschaft ? (
@@ -143,39 +206,20 @@ function HalleDetail() {
             </button>
           )
         )}
-    
-        {nutzerId && (
-          <Link
-          to={`/halle/${id}/nutzer/${nutzerId}`}
-          className="btn btn-outline"
-          style={{ marginTop: '1rem', marginRight: '0.5rem', display: 'inline-block' }}
-        >
-          👤 Mein Hallenprofil
-        </Link>
-        )}
         {istAdmin && (
           <Link to={`/halle/${id}/sektionen`} className="btn btn-outline">
             Sektionen & Routen
           </Link>
         )}
-        {/* Ranking – für alle sichtbar */}
-        <Link to={`/halle/${id}/ranking`} className="btn btn-outline">
-          🏆 Ranking
-        </Link>
-        <Link to={`/halle/${id}/einstellungen`} className="btn btn-outline">
-          ⚙️ Einstellungen
-        </Link>
+        <Link to={`/halle/${id}/ranking`} className="btn btn-outline">🏆 Ranking</Link>
+        <Link to={`/halle/${id}/einstellungen`} className="btn btn-outline">⚙️ Einstellungen</Link>
       </div>
 
       {/* Sektionen Karussell */}
       {sektionen.filter(s => s.image_url).length > 0 && (
         <div style={{ marginTop: '1.5rem' }}>
           <h2 style={{ marginBottom: '1rem' }}>🏔️ Wände</h2>
-          <div style={{
-            display: 'flex', gap: '1rem',
-            overflowX: 'auto', paddingBottom: '1rem',
-            scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a'
-          }}>
+          <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '1rem', scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a' }}>
             {sektionen.filter(s => s.image_url).map(sektion => (
               <div key={sektion.id} onClick={() => setFilterSektion(sektion.id)}
                 style={{
@@ -196,10 +240,7 @@ function HalleDetail() {
                     padding: '2px 5px', fontSize: '0.7rem', color: 'white', pointerEvents: 'none'
                   }}>🔍 Wandplan</div>
                 </div>
-                <div style={{
-                  padding: '0.5rem 0.75rem',
-                  background: filterSektion === sektion.id ? 'rgba(255,107,0,0.15)' : '#1a1a1a'
-                }}>
+                <div style={{ padding: '0.5rem 0.75rem', background: filterSektion === sektion.id ? 'rgba(255,107,0,0.15)' : '#1a1a1a' }}>
                   <strong style={{ fontSize: '0.9rem', color: filterSektion === sektion.id ? '#ff6b00' : 'white' }}>
                     {sektion.name}
                   </strong>
@@ -245,10 +286,10 @@ function HalleDetail() {
             <option value="leicht">Leichteste zuerst</option>
           </select>
         </div>
-        <button
-          onClick={() => { setFilterSektion('alle'); setFilterGradVon(''); setFilterGradBis(''); setFilterSort('neu') }}
-          style={{ background: 'transparent', border: '1px solid #444', color: '#aaa', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}
-        >Zurücksetzen</button>
+        <button onClick={() => { setFilterSektion('alle'); setFilterGradVon(''); setFilterGradBis(''); setFilterSort('neu') }}
+          style={{ background: 'transparent', border: '1px solid #444', color: '#aaa', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}>
+          Zurücksetzen
+        </button>
       </div>
 
       {/* Routen */}
@@ -259,11 +300,7 @@ function HalleDetail() {
       {gefilterteRouten.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
           <p style={{ marginBottom: '0.5rem' }}>Keine Routen gefunden.</p>
-          {istAdmin && (
-            <Link to={`/halle/${id}/sektionen`} style={{ color: '#ff6b00' }}>
-              Sektionen & Routen verwalten →
-            </Link>
-          )}
+          {istAdmin && <Link to={`/halle/${id}/sektionen`} style={{ color: '#ff6b00' }}>Sektionen & Routen verwalten →</Link>}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '3rem' }}>
@@ -275,9 +312,7 @@ function HalleDetail() {
                 onClick={() => navigate(`/route/${route.id}`)}
               >
                 {route.image_url ? (
-                  <img src={route.image_url} alt={route.name} style={{
-                    width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0
-                  }} />
+                  <img src={route.image_url} alt={route.name} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: '8px', alignSelf: 'stretch', borderRadius: '4px', backgroundColor: route.color, flexShrink: 0 }} />
                 )}
@@ -303,53 +338,108 @@ function HalleDetail() {
         </div>
       )}
 
-      {/* Vollbild Wandplan */}
+      {/* ── Vollbild Wandplan mit Pinch-to-Zoom ── */}
       {vollbildSektion && (
-        <div onClick={() => setVollbildSektion(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          zIndex: 9999, padding: '1rem'
-        }}>
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '1rem',
+            // Kein onClick auf dem Hintergrund beim Zoomen
+          }}
+        >
+          {/* Header */}
           <div style={{
             width: '100%', maxWidth: '900px',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: '0.75rem'
+            marginBottom: '0.75rem', flexShrink: 0
           }}>
-            <h2 style={{ margin: 0, color: 'white' }}>
-              🏔️ {vollbildSektion.name}
-              <span style={{ fontSize: '0.85rem', color: '#aaa', marginLeft: '0.75rem', fontWeight: 'normal' }}>
-                {vollbildRouten.length > 0
-                  ? `${vollbildRouten.length} Route${vollbildRouten.length > 1 ? 'n' : ''} markiert`
-                  : 'Noch keine Routen markiert'}
-              </span>
-            </h2>
-            <button onClick={() => setVollbildSektion(null)} style={{
-              background: 'rgba(255,255,255,0.1)', border: 'none',
-              color: 'white', borderRadius: '50%', width: '40px', height: '40px',
-              cursor: 'pointer', fontSize: '1.2rem', flexShrink: 0
-            }}>✕</button>
+            <div>
+              <h2 style={{ margin: 0, color: 'white', fontSize: '1rem' }}>
+                🏔️ {vollbildSektion.name}
+              </h2>
+              <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '0.2rem' }}>
+                {zoom > 1
+                  ? `Zoom: ${zoom.toFixed(1)}× · Doppeltipp zum Zurücksetzen`
+                  : 'Pinch zum Zoomen · Tippe auf Route für Details'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              {zoom > 1 && (
+                <button onClick={doppelklickReset} style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none',
+                  color: 'white', borderRadius: '8px', padding: '0.3rem 0.7rem',
+                  cursor: 'pointer', fontSize: '0.8rem'
+                }}>↩ Reset</button>
+              )}
+              <button onClick={() => setVollbildSektion(null)} style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none',
+                color: 'white', borderRadius: '50%', width: '40px', height: '40px',
+                cursor: 'pointer', fontSize: '1.2rem', flexShrink: 0
+              }}>✕</button>
+            </div>
           </div>
-          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: '900px', width: '100%', maxHeight: '80vh' }}>
-            <img src={vollbildSektion.image_url} alt={vollbildSektion.name} style={{
-              width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block', borderRadius: '8px'
-            }} />
-            {vollbildRouten.map(route => (
-              <RoutenRahmen key={route.id} route={route}
-                onClick={() => { setVollbildSektion(null); navigate(`/route/${route.id}`) }} />
-            ))}
+
+          {/* Bild-Container mit Zoom */}
+          <div
+            ref={bildContainerRef}
+            onTouchStart={viewerTouchStart}
+            onTouchMove={viewerTouchMove}
+            onTouchEnd={viewerTouchEnd}
+            onDoubleClick={doppelklickReset}
+            style={{
+              position: 'relative', maxWidth: '900px', width: '100%',
+              maxHeight: '80vh', overflow: 'hidden',
+              // Cursor zeigt ob pan möglich ist
+              cursor: zoom > 1 ? 'grab' : 'default',
+              touchAction: 'none'  // verhindert Browser-Zoom
+            }}
+          >
+            <div style={{
+              transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
+              transformOrigin: 'center center',
+              transition: letzterPinch.current ? 'none' : 'transform 0.1s ease-out'
+            }}>
+              <img
+                src={vollbildSektion.image_url}
+                alt={vollbildSektion.name}
+                style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block', borderRadius: '8px' }}
+                draggable={false}
+              />
+
+              {/* Routen-Marker – nur bei zoom=1 klickbar damit Pinch nicht zu Route navigiert */}
+              {vollbildRouten.map(route => (
+                <RoutenRahmen
+                  key={route.id}
+                  route={route}
+                  klickbar={zoom <= 1.2}
+                  onClick={() => {
+                    if (zoom > 1.2) return  // kein versehentlicher Klick beim Zoomen
+                    setVollbildSektion(null)
+                    navigate(`/route/${route.id}`)
+                  }}
+                />
+              ))}
+            </div>
           </div>
-          <p style={{ color: '#555', fontSize: '0.8rem', marginTop: '0.75rem' }}>Klick außerhalb zum Schließen</p>
+
+          {vollbildRouten.length === 0 && (
+            <p style={{ color: '#555', fontSize: '0.8rem', marginTop: '0.75rem' }}>
+              Noch keine Routen markiert
+            </p>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function RoutenRahmen({ route, onClick }) {
+function RoutenRahmen({ route, onClick, klickbar }) {
   const [hovered, setHovered] = useState(false)
   return (
-    <div onClick={onClick}
+    <div
+      onClick={klickbar ? onClick : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -358,7 +448,9 @@ function RoutenRahmen({ route, onClick }) {
         width: `${route.marker_width}%`, height: `${route.marker_height}%`,
         border: `3px solid ${route.color}`, borderRadius: '6px',
         background: hovered ? `${route.color}44` : `${route.color}11`,
-        boxSizing: 'border-box', cursor: 'pointer', transition: 'background 0.15s', zIndex: 10
+        boxSizing: 'border-box',
+        cursor: klickbar ? 'pointer' : 'default',
+        transition: 'background 0.15s', zIndex: 10
       }}
     >
       <div style={{
