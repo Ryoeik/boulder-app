@@ -20,6 +20,7 @@ import RouteErstellen from './pages/RouteErstellen'
 import RouteDetail from './pages/RouteDetail'
 import Login from './pages/Login'
 import Datenschutz from './pages/Datenschutz'
+import HallenProfil from './pages/HallenProfil'
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
         <Route path="/route/:routeId" element={<RouteDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/datenschutz" element={<Datenschutz />} />
+        <Route path="/halle/:gymId/nutzer/:userId" element={<HallenProfil />} />
       </Routes>
 
       <footer style={{

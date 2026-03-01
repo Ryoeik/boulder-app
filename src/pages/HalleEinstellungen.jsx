@@ -125,10 +125,12 @@ function HalleEinstellungen() {
               </div>
 
               <div style={{ flex: 1 }}>
-                <strong style={{ color: 'white' }}>
-                  {m.profiles?.username || 'Unbekannter Nutzer'}
-                  {istIchSelbst && <span style={{ color: '#666', fontSize: '0.8rem' }}> (du)</span>}
-                </strong>
+                <Link to={`/halle/${gymId}/nutzer/${m.user_id}`} style={{ textDecoration: 'none' }}>
+                 <strong style={{ color: 'white' }}>
+                   {m.profiles?.username || 'Unbekannter Nutzer'}
+                    {istIchSelbst && <span style={{ color: '#666', fontSize: '0.8rem' }}> (du)</span>}
+                   </strong>
+                </Link>
                 <div style={{ marginTop: '0.2rem' }}>
                   <span style={{
                     fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: '20px',
