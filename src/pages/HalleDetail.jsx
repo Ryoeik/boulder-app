@@ -12,6 +12,8 @@ function HalleDetail() {
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
   const [nutzerRolle, setNutzerRolle] = useState(null)
+  const [mitgliedschaft, setMitgliedschaft] = useState(null)
+  const [beitretenLaden, setBeitretenLaden] = useState(false)
 
   // NEU: Vollbild-Viewer State
   // vollbildSektion speichert die ganze Sektion (mit id, image_url, name)
@@ -58,15 +60,16 @@ function HalleDetail() {
       setBewertungen(bewertungsMap)
 
       const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
+        if (session?.user) {
         const { data: mitglied } = await supabase
-          .from('gym_members')
-          .select('role')
-          .eq('gym_id', id)
-          .eq('user_id', session.user.id)
-          .single()
-        setNutzerRolle(mitglied?.role || null)
-      }
+        .from('gym_members')
+        .select('role')
+        .eq('gym_id', id)
+        .eq('user_id', session.user.id)
+        .single()
+      setNutzerRolle(mitglied?.role || null)
+    setMitgliedschaft(mitglied || null)
+  }
 
       setLaden(false)
     }
@@ -116,6 +119,30 @@ function HalleDetail() {
       </div>
       <p>📍 {halle.city}</p>
 
+      {/* Beitreten / Verlassen Button */}
+{!istAdmin && (
+  <div style={{ marginTop: '1rem' }}>
+    {mitgliedschaft ? (
+      <button
+        onClick={halleVerlassen}
+        disabled={beitretenLaden}
+        className="btn btn-outline"
+        style={{ borderColor: '#ff4444', color: '#ff4444' }}
+      >
+        {beitretenLaden ? '...' : 'Halle verlassen'}
+      </button>
+    ) : (
+      <button
+        onClick={halleBetreten}
+        disabled={beitretenLaden}
+        className="btn"
+      >
+        {beitretenLaden ? '...' : '🤝 Halle beitreten'}
+      </button>
+    )}
+  </div>
+)}
+
       {istAdmin && (
         <Link
           to={`/halle/${id}/sektionen`}
@@ -132,7 +159,7 @@ function HalleDetail() {
             className="btn btn-outline"
               style={{ marginTop: '0.5rem', marginLeft: '0.5rem', display: 'inline-block' }}
                >
-                ⚙️ Einstellungen
+                Einstellungen
           </Link>
 
 
@@ -477,6 +504,36 @@ const selectStyle = {
   color: 'white',
   fontSize: '0.9rem',
   cursor: 'pointer'
+}
+
+async function halleBetreten() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) { navigate('/login'); return }
+
+  setBeitretenLaden(true)
+  const { error } = await supabase.from('gym_members').insert({
+    gym_id: id,
+    user_id: session.user.id,
+    role: 'member'
+  })
+
+  if (!error) {
+    setMitgliedschaft({ role: 'member' })
+    setNutzerRolle('member')
+  }
+  setBeitretenLaden(false)
+}
+
+async function halleVerlassen() {
+  const { data: { session } } = await supabase.auth.getSession()
+  setBeitretenLaden(true)
+  await supabase.from('gym_members')
+    .delete()
+    .eq('gym_id', id)
+    .eq('user_id', session.user.id)
+  setMitgliedschaft(null)
+  setNutzerRolle(null)
+  setBeitretenLaden(false)
 }
 
 export default HalleDetail
