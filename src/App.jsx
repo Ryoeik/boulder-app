@@ -36,7 +36,7 @@ function App() {
   return (
     <BrowserRouter>
       <nav className="navbar">
-        <Link to="/" className="navbar-logo">🧗 BoulderApp</Link>
+        <Link to="/" className="navbar-logo">🧗</Link>
         <div className="navbar-links">
           <Link to="/">Start</Link>
           <Link to="/hallen">Hallen</Link>
