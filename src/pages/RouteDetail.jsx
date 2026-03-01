@@ -505,17 +505,6 @@ function RouteDetail() {
                     // Pulsieren für die aktuelle Route
                     animation: istAktuell ? 'pulsieren 1.2s ease-in-out 4' : 'none'
                   }}>
-                    {istAktuell && (
-                     <div style={{
-                      position: 'absolute', bottom: '100%', left: '0', marginBottom: '3px',
-                      background: r.color, color: 'white',
-                      fontSize: '0.8rem', fontWeight: 'bold',
-                      padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.5)', pointerEvents: 'none'
-                    }}>
-                      📍
-                    </div>
-                  )}
                   </div>
                 )
               })}
