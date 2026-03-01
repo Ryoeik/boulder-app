@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabase'
 import { Link } from 'react-router-dom'
+import AccountLoeschen from '../components/AccountLoeschen'
 
 // Fontainebleau-Grade in der richtigen Reihenfolge
 // Wird für den Chart und die Sortierung gebraucht
@@ -451,17 +452,17 @@ function Profil() {
                 </div>
               </Link>
             )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+           })}
+          </div>
+        )}
+        {/* ── Account löschen ── */}
+       <AccountLoeschen nutzer={nutzer} />
+     </div>
+    )
+  } 
 
- {/* ── Account löschen ── */}
-      <AccountLoeschen nutzer={nutzer} />
+ const inputStyle = {
 
-const inputStyle = {
   width: '100%', padding: '0.6rem 0.75rem',
   background: '#1a1a1a', border: '1px solid #2a2a2a',
   borderRadius: '8px', color: 'white', fontSize: '0.95rem',

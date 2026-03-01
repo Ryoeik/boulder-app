@@ -2,9 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
-<AccountLoeschen nutzer={nutzer} />
-import AccountLoeschen from '../components/AccountLoeschen'
-
 function AccountLoeschen({ nutzer }) {
   const navigate = useNavigate()
   const [zeigeModal, setZeigeModal] = useState(false)
