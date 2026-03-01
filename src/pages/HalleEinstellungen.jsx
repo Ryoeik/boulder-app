@@ -86,7 +86,8 @@ function HalleEinstellungen() {
   }
 
   if (laden) return <div className="container"><p>Lädt...</p></div>
-  if (!meineRolle) return <div className="container"><h1>Kein Zugriff</h1></div>
+  if (!meineRolle && !istSuperAdmin) return <div className="container"><h1>Kein Zugriff</h1></div>
+
 
   return (
     <div className="container" style={{ maxWidth: '700px' }}>
