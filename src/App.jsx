@@ -1,61 +1,31 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
-import { supabase } from './supabase'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import './index.css'
+
+// Komponenten
+import Navbar from './components/Navbar'
+import Disclaimer from './components/Disclaimer'
+
+// Seiten
 import Startseite from './pages/Startseite'
 import Hallen from './pages/Hallen'
 import Profil from './pages/Profil'
 import NutzerProfil from './pages/NutzerProfil'
 import HalleDetail from './pages/HalleDetail'
-import Login from './pages/Login'
-import './index.css'
 import HalleErstellen from './pages/HalleErstellen'
-import RouteErstellen from './pages/RouteErstellen'
+import HalleEinstellungen from './pages/HalleEinstellungen'
 import SektionErstellen from './pages/SektionErstellen'
 import SektionDetail from './pages/SektionDetail'
-import RouteDetail from './pages/RouteDetail'
 import WandplanEditor from './pages/WandplanEditor'
-import HalleEinstellungen from './pages/HalleEinstellungen'
-import Ranking from './pages/Ranking'
+import RouteErstellen from './pages/RouteErstellen'
+import RouteDetail from './pages/RouteDetail'
+import Login from './pages/Login'
+import Datenschutz from './pages/Datenschutz'
 
 function App() {
-  const [nutzer, setNutzer] = useState(null)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setNutzer(session?.user ?? null)
-    })
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setNutzer(session?.user ?? null)
-    })
-  }, [])
-
-  async function ausloggen() {
-    await supabase.auth.signOut()
-  }
-
   return (
     <BrowserRouter>
-      <nav className="navbar">
-        <Link to="/" className="navbar-logo">🧗</Link>
-        <div className="navbar-links">
-          <Link to="/">Start</Link>
-          <Link to="/hallen">Hallen</Link>
-          {nutzer ? (
-            <>
-              <Link to="/profil">Profil</Link>
-              <span
-                onClick={ausloggen}
-                style={{ color: '#ff6b00', cursor: 'pointer' }}
-              >
-                Ausloggen
-              </span>
-            </>
-          ) : (
-            <Link to="/login">Login</Link>
-          )}
-        </div>
-      </nav>
+      <Disclaimer />
+      <Navbar />
 
       <Routes>
         <Route path="/" element={<Startseite />} />
@@ -63,16 +33,29 @@ function App() {
         <Route path="/profil" element={<Profil />} />
         <Route path="/nutzer/:userId" element={<NutzerProfil />} />
         <Route path="/halle/:gymId" element={<HalleDetail />} />
-        <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
-        <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
-        <Route path="/login" element={<Login />} />
         <Route path="/halle-erstellen" element={<HalleErstellen />} />
-        <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
-        <Route path="/route/:routeId" element={<RouteDetail />} />
-        <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
         <Route path="/halle/:gymId/einstellungen" element={<HalleEinstellungen />} />
-        <Route path="/halle/:gymId/ranking" element={<Ranking />} />
+        <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
+        <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
+        <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
+        <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
+        <Route path="/route/:routeId" element={<RouteDetail />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/datenschutz" element={<Datenschutz />} />
       </Routes>
+
+      <footer style={{
+        borderTop: '1px solid #1a1a1a', padding: '1.5rem',
+        textAlign: 'center', marginTop: '3rem'
+      }}>
+        <a href="/datenschutz" style={{ color: '#555', fontSize: '0.85rem', textDecoration: 'none' }}>
+          Datenschutz
+        </a>
+        <span style={{ color: '#333', margin: '0 0.75rem' }}>·</span>
+        <span style={{ color: '#555', fontSize: '0.85rem' }}>
+          BoulderApp – Ein privates Community-Projekt
+        </span>
+      </footer>
     </BrowserRouter>
   )
 }
