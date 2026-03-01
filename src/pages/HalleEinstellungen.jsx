@@ -27,10 +27,11 @@ function HalleEinstellungen() {
         .eq('gym_id', gymId).eq('user_id', session?.user?.id).single()
       setMeineRolle(meineRolleDaten?.role || null)
 
-      const { data: mitgliederDaten } = await supabase
+      const { data: mitgliederDaten, error: mitgliederFehler } = await supabase
         .from('gym_members').select('*, profiles(username, avatar_url)')
         .eq('gym_id', gymId).order('created_at', { ascending: true })
-      setMitglieder(mitgliederDaten || [])
+        console.log('Mitglieder:', mitgliederDaten, 'Fehler:', mitgliederFehler)
+        setMitglieder(mitgliederDaten || [])
 
       setLaden(false)
     }
