@@ -15,6 +15,7 @@ import SektionDetail from './pages/SektionDetail'
 import RouteDetail from './pages/RouteDetail'
 import WandplanEditor from './pages/WandplanEditor'
 import HalleEinstellungen from './pages/HalleEinstellungen'
+import Ranking from './pages/Ranking'
 
 function App() {
   const [nutzer, setNutzer] = useState(null)
@@ -70,6 +71,7 @@ function App() {
         <Route path="/route/:routeId" element={<RouteDetail />} />
         <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
         <Route path="/halle/:gymId/einstellungen" element={<HalleEinstellungen />} />
+        <Route path="/halle/:gymId/ranking" element={<Ranking />} />
       </Routes>
     </BrowserRouter>
   )

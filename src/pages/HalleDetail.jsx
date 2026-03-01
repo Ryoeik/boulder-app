@@ -14,13 +14,8 @@ function HalleDetail() {
   const [nutzerRolle, setNutzerRolle] = useState(null)
   const [mitgliedschaft, setMitgliedschaft] = useState(null)
   const [beitretenLaden, setBeitretenLaden] = useState(false)
-
-  // NEU: Vollbild-Viewer State
-  // vollbildSektion speichert die ganze Sektion (mit id, image_url, name)
-  // so können wir die passenden Routen + Marker dazu laden
   const [vollbildSektion, setVollbildSektion] = useState(null)
   const [vollbildRouten, setVollbildRouten] = useState([])
-
   const [filterSektion, setFilterSektion] = useState('alle')
   const [filterGradVon, setFilterGradVon] = useState('')
   const [filterGradBis, setFilterGradBis] = useState('')
@@ -54,40 +49,53 @@ function HalleDetail() {
         bewertungsMap[r.route_id] += r.stars
         counts[r.route_id]++
       })
-      Object.keys(bewertungsMap).forEach(id => {
-        bewertungsMap[id] = (bewertungsMap[id] / counts[id]).toFixed(1)
+      Object.keys(bewertungsMap).forEach(gymId => {
+        bewertungsMap[gymId] = (bewertungsMap[gymId] / counts[gymId]).toFixed(1)
       })
       setBewertungen(bewertungsMap)
 
       const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
+      if (session?.user) {
         const { data: mitglied } = await supabase
-        .from('gym_members')
-        .select('role')
-        .eq('gym_id', id)
-        .eq('user_id', session.user.id)
-        .single()
-      setNutzerRolle(mitglied?.role || null)
-    setMitgliedschaft(mitglied || null)
-  }
+          .from('gym_members').select('role')
+          .eq('gym_id', id).eq('user_id', session.user.id).single()
+        setNutzerRolle(mitglied?.role || null)
+        setMitgliedschaft(mitglied || null)
+      }
 
       setLaden(false)
     }
     datenLaden()
   }, [id])
 
-  // NEU: Wenn der User auf ein Sektionsbild klickt, laden wir die
-  // Routen dieser Sektion mit ihren Marker-Koordinaten
+  // ── Beitreten / Verlassen – jetzt korrekt INNERHALB der Komponente ───────────
+  async function halleBetreten() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { navigate('/login'); return }
+    setBeitretenLaden(true)
+    const { error } = await supabase.from('gym_members').insert({
+      gym_id: id, user_id: session.user.id, role: 'member'
+    })
+    if (!error) { setMitgliedschaft({ role: 'member' }); setNutzerRolle('member') }
+    setBeitretenLaden(false)
+  }
+
+  async function halleVerlassen() {
+    const { data: { session } } = await supabase.auth.getSession()
+    setBeitretenLaden(true)
+    await supabase.from('gym_members')
+      .delete().eq('gym_id', id).eq('user_id', session.user.id)
+    setMitgliedschaft(null)
+    setNutzerRolle(null)
+    setBeitretenLaden(false)
+  }
+
   async function vollbildOeffnen(sektion) {
-    // Routen dieser Sektion mit Markern aus der DB laden
     const { data: routenMitMarkern } = await supabase
       .from('routes')
       .select('id, name, color, setter_grade, marker_x, marker_y, marker_width, marker_height')
-      .eq('section_id', sektion.id)
-      .eq('is_active', true)
-      // Nur Routen mit gesetzten Markern anzeigen
+      .eq('section_id', sektion.id).eq('is_active', true)
       .not('marker_x', 'is', null)
-
     setVollbildRouten(routenMitMarkern || [])
     setVollbildSektion(sektion)
   }
@@ -119,49 +127,33 @@ function HalleDetail() {
       </div>
       <p>📍 {halle.city}</p>
 
-      {/* Beitreten / Verlassen Button */}
-{!istAdmin && (
-  <div style={{ marginTop: '1rem' }}>
-    {mitgliedschaft ? (
-      <button
-        onClick={halleVerlassen}
-        disabled={beitretenLaden}
-        className="btn btn-outline"
-        style={{ borderColor: '#ff4444', color: '#ff4444' }}
-      >
-        {beitretenLaden ? '...' : 'Halle verlassen'}
-      </button>
-    ) : (
-      <button
-        onClick={halleBetreten}
-        disabled={beitretenLaden}
-        className="btn"
-      >
-        {beitretenLaden ? '...' : '🤝 Halle beitreten'}
-      </button>
-    )}
-  </div>
-)}
-
-      {istAdmin && (
-        <Link
-          to={`/halle/${id}/sektionen`}
-          className="btn btn-outline"
-          style={{ marginTop: '1rem', display: 'inline-block' }}
-        >
-          Sektionen & Routen verwalten
-        </Link>
-        
-      )}
-
-        <Link
-            to={`/halle/${id}/einstellungen`}
-            className="btn btn-outline"
-              style={{ marginTop: '0.5rem', marginLeft: '0.5rem', display: 'inline-block' }}
-               >
-                Einstellungen
+      {/* Aktions-Buttons – alle in einer Zeile */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem' }}>
+        {!istAdmin && (
+          mitgliedschaft ? (
+            <button onClick={halleVerlassen} disabled={beitretenLaden}
+              className="btn btn-outline" style={{ borderColor: '#ff4444', color: '#ff4444' }}>
+              {beitretenLaden ? '...' : 'Verlassen'}
+            </button>
+          ) : (
+            <button onClick={halleBetreten} disabled={beitretenLaden} className="btn">
+              {beitretenLaden ? '...' : '🤝 Beitreten'}
+            </button>
+          )
+        )}
+        {istAdmin && (
+          <Link to={`/halle/${id}/sektionen`} className="btn btn-outline">
+            Sektionen & Routen
           </Link>
-
+        )}
+        {/* Ranking – für alle sichtbar */}
+        <Link to={`/halle/${id}/ranking`} className="btn btn-outline">
+          🏆 Ranking
+        </Link>
+        <Link to={`/halle/${id}/einstellungen`} className="btn btn-outline">
+          ⚙️ Einstellungen
+        </Link>
+      </div>
 
       {/* Sektionen Karussell */}
       {sektionen.filter(s => s.image_url).length > 0 && (
@@ -173,9 +165,7 @@ function HalleDetail() {
             scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a'
           }}>
             {sektionen.filter(s => s.image_url).map(sektion => (
-              <div
-                key={sektion.id}
-                onClick={() => setFilterSektion(sektion.id)}
+              <div key={sektion.id} onClick={() => setFilterSektion(sektion.id)}
                 style={{
                   flexShrink: 0, width: '200px', cursor: 'pointer',
                   borderRadius: '12px', overflow: 'hidden',
@@ -183,39 +173,24 @@ function HalleDetail() {
                   transition: 'border-color 0.2s'
                 }}
               >
-                {/* 
-                  NEU: Das Bild hat jetzt einen eigenen onClick der den Vollbild-Viewer öffnet.
-                  e.stopPropagation() verhindert, dass gleichzeitig auch der Sektion-Filter
-                  ausgelöst wird (der ist auf dem äußeren div).
-                */}
                 <div style={{ position: 'relative' }}>
-                  <img
-                    src={sektion.image_url}
-                    alt={sektion.name}
+                  <img src={sektion.image_url} alt={sektion.name}
                     onClick={e => { e.stopPropagation(); vollbildOeffnen(sektion) }}
-                    style={{
-                      width: '100%', height: '120px', objectFit: 'cover',
-                      display: 'block', cursor: 'zoom-in'
-                    }}
+                    style={{ width: '100%', height: '120px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
                   />
-                  {/* Kleines Hinweis-Icon dass das Bild anklickbar ist */}
                   <div style={{
                     position: 'absolute', bottom: '6px', right: '6px',
                     background: 'rgba(0,0,0,0.6)', borderRadius: '4px',
-                    padding: '2px 5px', fontSize: '0.7rem', color: 'white',
-                    pointerEvents: 'none'
-                  }}>
-                    🔍 Wandplan
-                  </div>
+                    padding: '2px 5px', fontSize: '0.7rem', color: 'white', pointerEvents: 'none'
+                  }}>🔍 Wandplan</div>
                 </div>
                 <div style={{
                   padding: '0.5rem 0.75rem',
                   background: filterSektion === sektion.id ? 'rgba(255,107,0,0.15)' : '#1a1a1a'
                 }}>
-                  <strong style={{
-                    fontSize: '0.9rem',
-                    color: filterSektion === sektion.id ? '#ff6b00' : 'white'
-                  }}>{sektion.name}</strong>
+                  <strong style={{ fontSize: '0.9rem', color: filterSektion === sektion.id ? '#ff6b00' : 'white' }}>
+                    {sektion.name}
+                  </strong>
                 </div>
               </div>
             ))}
@@ -226,8 +201,7 @@ function HalleDetail() {
       {/* Filterleiste */}
       <div style={{
         marginTop: '2rem', padding: '1rem',
-        background: '#1a1a1a', borderRadius: '12px',
-        border: '1px solid #2a2a2a',
+        background: '#1a1a1a', borderRadius: '12px', border: '1px solid #2a2a2a',
         display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end'
       }}>
         <div>
@@ -261,14 +235,8 @@ function HalleDetail() {
         </div>
         <button
           onClick={() => { setFilterSektion('alle'); setFilterGradVon(''); setFilterGradBis(''); setFilterSort('neu') }}
-          style={{
-            background: 'transparent', border: '1px solid #444',
-            color: '#aaa', padding: '0.5rem 1rem',
-            borderRadius: '8px', cursor: 'pointer'
-          }}
-        >
-          Zurücksetzen
-        </button>
+          style={{ background: 'transparent', border: '1px solid #444', color: '#aaa', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer' }}
+        >Zurücksetzen</button>
       </div>
 
       {/* Routen */}
@@ -290,40 +258,28 @@ function HalleDetail() {
           {gefilterteRouten.map(route => {
             const sektion = sektionen.find(s => s.id === route.section_id)
             return (
-              <div
-                 key={route.id}
-                  className="card"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', minHeight: '72px' }}
-                  onClick={() => navigate(`/route/${route.id}`)}
-                >
+              <div key={route.id} className="card"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', minHeight: '72px' }}
+                onClick={() => navigate(`/route/${route.id}`)}
+              >
                 {route.image_url ? (
                   <img src={route.image_url} alt={route.name} style={{
-                    width: '60px', height: '60px', objectFit: 'cover',
-                    borderRadius: '8px', flexShrink: 0
+                    width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0
                   }} />
                 ) : (
-                  <div style={{
-                    width: '8px', alignSelf: 'stretch', borderRadius: '4px',
-                    backgroundColor: route.color, flexShrink: 0
-                  }} />
+                  <div style={{ width: '8px', alignSelf: 'stretch', borderRadius: '4px', backgroundColor: route.color, flexShrink: 0 }} />
                 )}
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong style={{ fontSize: '1.1rem', color: 'white' }}>{route.name}</strong>
-                    <span style={{
-                      background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
-                      padding: '0.2rem 0.6rem', borderRadius: '20px',
-                      fontSize: '0.85rem', fontWeight: 'bold'
-                    }}>
+                    <span style={{ background: 'rgba(255,107,0,0.15)', color: '#ff6b00', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>
                       {route.setter_grade}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
                     {sektion && <span style={{ fontSize: '0.8rem', color: '#666' }}>📍 {sektion.name}</span>}
-                    {bewertungen[route.id] && (
-                      <span style={{ fontSize: '0.8rem', color: '#FFD700' }}>⭐ {bewertungen[route.id]}</span>
-                    )}
-                    <span style={{ fontSize: '0.8rem', color: '#666' }}>💬 Details ansehen</span>
+                    {bewertungen[route.id] && <span style={{ fontSize: '0.8rem', color: '#FFD700' }}>⭐ {bewertungen[route.id]}</span>}
+                    <span style={{ fontSize: '0.8rem', color: '#666' }}>💬 Details</span>
                   </div>
                 </div>
                 <div onClick={e => e.stopPropagation()}>
@@ -335,29 +291,14 @@ function HalleDetail() {
         </div>
       )}
 
-      {/* 
-        NEU: Interaktiver Vollbild-Wandplan
-        
-        Aufbau:
-        - Dunkler Overlay-Hintergrund (fixed, deckt alles ab)
-        - Zentriertes Bild mit position: relative
-        - Für jede Route mit Koordinaten: ein absolut positioniertes div
-          das als anklickbarer Rahmen funktioniert
-        - Klick auf Rahmen → navigate zur Routenseite
-        - Klick auf Hintergrund → Viewer schließen
-      */}
+      {/* Vollbild Wandplan */}
       {vollbildSektion && (
-        <div
-          onClick={() => setVollbildSektion(null)}
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.95)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            zIndex: 9999, padding: '1rem'
-          }}
-        >
-          {/* Header: Sektionsname + Schließen-Button */}
+        <div onClick={() => setVollbildSektion(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
           <div style={{
             width: '100%', maxWidth: '900px',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -371,124 +312,48 @@ function HalleDetail() {
                   : 'Noch keine Routen markiert'}
               </span>
             </h2>
-            <button
-              onClick={() => setVollbildSektion(null)}
-              style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none',
-                color: 'white', borderRadius: '50%', width: '40px', height: '40px',
-                cursor: 'pointer', fontSize: '1.2rem', flexShrink: 0
-              }}
-            >✕</button>
+            <button onClick={() => setVollbildSektion(null)} style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none',
+              color: 'white', borderRadius: '50%', width: '40px', height: '40px',
+              cursor: 'pointer', fontSize: '1.2rem', flexShrink: 0
+            }}>✕</button>
           </div>
-
-          {/* 
-            Bild-Container: position relative ist der Anker für alle Marker.
-            onClick stopPropagation verhindert, dass Klick aufs Bild den Viewer schließt.
-            Der Viewer schließt nur beim Klick auf den dunklen Hintergrund drumherum.
-          */}
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              position: 'relative',
-              maxWidth: '900px',
-              width: '100%',
-              maxHeight: '80vh',
-            }}
-          >
-            <img
-              src={vollbildSektion.image_url}
-              alt={vollbildSektion.name}
-              style={{
-                width: '100%',
-                maxHeight: '80vh',
-                objectFit: 'contain',
-                display: 'block',
-                borderRadius: '8px'
-              }}
-            />
-
-            {/* 
-              Routen-Rahmen: 
-              Für jede Route mit Marker-Koordinaten zeichnen wir ein absolut
-              positioniertes div. Die Koordinaten sind in Prozent gespeichert
-              (0-100), so funktioniert es auf jeder Bildschirmgröße.
-              
-              Hover-Effekt: background wird dunkler, damit der User sieht
-              dass es klickbar ist. Wir steuern das mit einem State.
-            */}
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', maxWidth: '900px', width: '100%', maxHeight: '80vh' }}>
+            <img src={vollbildSektion.image_url} alt={vollbildSektion.name} style={{
+              width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block', borderRadius: '8px'
+            }} />
             {vollbildRouten.map(route => (
-              <RoutenRahmen
-                key={route.id}
-                route={route}
-                onClick={() => navigate(`/route/${route.id}`)}
-              />
+              <RoutenRahmen key={route.id} route={route}
+                onClick={() => { setVollbildSektion(null); navigate(`/route/${route.id}`) }} />
             ))}
           </div>
-
-          <p style={{ color: '#555', fontSize: '0.8rem', marginTop: '0.75rem' }}>
-            Klick außerhalb des Bildes zum Schließen
-          </p>
+          <p style={{ color: '#555', fontSize: '0.8rem', marginTop: '0.75rem' }}>Klick außerhalb zum Schließen</p>
         </div>
       )}
     </div>
   )
 }
 
-/*
-  RoutenRahmen ist eine eigene kleine Komponente, damit wir den Hover-State
-  pro Rahmen verwalten können – ohne dass alle Rahmen gleichzeitig leuchten.
-  
-  CSS-Klassen können wir hier nicht gut nutzen (inline styles), deshalb
-  verwalten wir hover mit useState.
-*/
 function RoutenRahmen({ route, onClick }) {
   const [hovered, setHovered] = useState(false)
-
   return (
-    <div
-      onClick={onClick}
+    <div onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         position: 'absolute',
-        // Die Koordinaten kommen direkt aus der DB (in %)
-        left: `${route.marker_x}%`,
-        top: `${route.marker_y}%`,
-        width: `${route.marker_width}%`,
-        height: `${route.marker_height}%`,
-        // Rahmen in der Grifffarbe der Route
-        border: `3px solid ${route.color}`,
-        borderRadius: '6px',
-        // Beim Hover: halbtransparenter Farbfleck, damit der User sieht was er anklickt
+        left: `${route.marker_x}%`, top: `${route.marker_y}%`,
+        width: `${route.marker_width}%`, height: `${route.marker_height}%`,
+        border: `3px solid ${route.color}`, borderRadius: '6px',
         background: hovered ? `${route.color}44` : `${route.color}11`,
-        boxSizing: 'border-box',
-        cursor: 'pointer',
-        transition: 'background 0.15s',
-        // zIndex damit der Label-Text über dem Bild liegt
-        zIndex: 10
+        boxSizing: 'border-box', cursor: 'pointer', transition: 'background 0.15s', zIndex: 10
       }}
     >
-      {/* 
-        Label: zeigt Routenname + Grad.
-        Erscheint immer (nicht nur beim Hover), damit der User
-        ohne Hover weiß welche Route wo ist.
-        Bei vielen Routen kann das überlappen – das ist ein bekannter
-        Trade-off bei Wandplänen.
-      */}
       <div style={{
-        position: 'absolute',
-        bottom: '100%',
-        left: '0',
-        marginBottom: '3px',
-        background: route.color,
-        color: 'white',
-        fontSize: '0.7rem',
-        padding: '2px 6px',
-        borderRadius: '4px',
-        whiteSpace: 'nowrap',
-        // Schatten damit der Text auch auf hellem Bild lesbar ist
-        boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
-        pointerEvents: 'none'
+        position: 'absolute', bottom: '100%', left: '0', marginBottom: '3px',
+        background: route.color, color: 'white', fontSize: '0.7rem',
+        padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.5)', pointerEvents: 'none'
       }}>
         {route.name} · {route.setter_grade}
       </div>
@@ -497,43 +362,9 @@ function RoutenRahmen({ route, onClick }) {
 }
 
 const selectStyle = {
-  padding: '0.5rem 0.75rem',
-  borderRadius: '8px',
-  border: '1px solid #2a2a2a',
-  background: '#111',
-  color: 'white',
-  fontSize: '0.9rem',
-  cursor: 'pointer'
-}
-
-async function halleBetreten() {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) { navigate('/login'); return }
-
-  setBeitretenLaden(true)
-  const { error } = await supabase.from('gym_members').insert({
-    gym_id: id,
-    user_id: session.user.id,
-    role: 'member'
-  })
-
-  if (!error) {
-    setMitgliedschaft({ role: 'member' })
-    setNutzerRolle('member')
-  }
-  setBeitretenLaden(false)
-}
-
-async function halleVerlassen() {
-  const { data: { session } } = await supabase.auth.getSession()
-  setBeitretenLaden(true)
-  await supabase.from('gym_members')
-    .delete()
-    .eq('gym_id', id)
-    .eq('user_id', session.user.id)
-  setMitgliedschaft(null)
-  setNutzerRolle(null)
-  setBeitretenLaden(false)
+  padding: '0.5rem 0.75rem', borderRadius: '8px',
+  border: '1px solid #2a2a2a', background: '#111',
+  color: 'white', fontSize: '0.9rem', cursor: 'pointer'
 }
 
 export default HalleDetail
