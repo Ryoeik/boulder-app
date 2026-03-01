@@ -43,20 +43,17 @@ function TickButton({ routeId }) {
   function modalOeffnen() {
     setZeigeModal(true)
     document.body.style.overflow = 'hidden'
-    document.body.classList.add('modal-offen')
   }
 
   function modalSchliessen() {
     setZeigeModal(false)
     document.body.style.overflow = ''
-    document.body.classList.remove('modal-offen')
   }
 
   async function tickSpeichern() {
     if (!gewaehlterTick) return
     setLaden(true)
 
-    // Tick speichern oder updaten
     if (tick) {
       await supabase.from('ticks').update({ tick_type: gewaehlterTick }).eq('id', tick.id)
       setTick({ ...tick, tick_type: gewaehlterTick })
@@ -69,7 +66,6 @@ function TickButton({ routeId }) {
       setTick(data)
     }
 
-    // Kommentar speichern
     if (kommentar.trim()) {
       await supabase.from('comments').insert({
         route_id: routeId,
@@ -79,7 +75,6 @@ function TickButton({ routeId }) {
       setKommentar('')
     }
 
-    // Bewertung speichern
     if (sterne > 0 || grad) {
       await supabase.from('route_ratings').upsert({
         route_id: routeId,
@@ -107,56 +102,77 @@ function TickButton({ routeId }) {
   }
 
   if (!nutzer) {
-    return <span style={{ color: '#666', fontSize: '0.85rem' }}>Login zum Ticken</span>
+    return <span style={{ color: '#666', fontSize: '0.85rem' }}>Login</span>
   }
+
+  // ── Kompakter Button für die Routenliste ─────────────────────────────────────
+  // Kein langer Text – nur Icon damit er in die Card passt
+  const buttonInhalt = tick
+    ? tick.tick_type === 'flash'      ? '⚡'
+    : tick.tick_type === 'second_try' ? '🔄'
+    : '✅'
+    : 'Send'
+
+  const buttonFarbe = tick
+    ? tick.tick_type === 'flash'      ? '#FFD700'
+    : tick.tick_type === 'second_try' ? '#ff6b00'
+    : '#00c851'
+    : '#444'   // Grau wenn noch kein Send
+
+  const buttonTextFarbe = tick?.tick_type === 'flash' ? '#000' : '#fff'
 
   return (
     <>
+      {/* 
+        Kompakter quadratischer Button – passt immer in die Card.
+        flexShrink: 0 verhindert dass er von anderen Elementen zusammengedrückt wird.
+      */}
       <button
-        className="btn"
-        style={{ background: tick ? '#00c851' : undefined }}
-        onClick={modalOeffnen}
+        onClick={e => { e.stopPropagation(); modalOeffnen() }}
+        style={{
+          background: buttonFarbe,
+          color: buttonTextFarbe,
+          border: 'none',
+          borderRadius: '10px',
+          width: '52px',
+          height: '52px',
+          fontSize: tick ? '1.4rem' : '0.75rem',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'background 0.2s'
+        }}
       >
-        {tick ? (
-          tick.tick_type === 'flash' ? '⚡ Flash' :
-          tick.tick_type === 'second_try' ? '2️⃣ 2. Versuch' : '✅ Geschafft'
-        ) : 'Geschafft!'}
+        {buttonInhalt}
       </button>
 
       {zeigeModal && (
         <div
           onClick={modalSchliessen}
-          onMouseDown={(e) => e.stopPropagation()}
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.8)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 9999, padding: '1rem',
-            pointerEvents: 'all'
+            zIndex: 9999, padding: '1rem'
           }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
             style={{
               background: '#1a1a1a', borderRadius: '16px',
               padding: '2rem', width: '100%', maxWidth: '420px',
               border: '1px solid #2a2a2a',
-              maxHeight: '90vh', overflowY: 'auto',
-              pointerEvents: 'all'
+              maxHeight: '90vh', overflowY: 'auto'
             }}
           >
-            {/* Header mit Zurück Pfeil */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
               <button
                 onClick={modalSchliessen}
-                style={{
-                  background: 'transparent', border: 'none',
-                  color: '#aaa', cursor: 'pointer', fontSize: '1.5rem',
-                  padding: '0', lineHeight: 1
-                }}
-              >
-                ←
-              </button>
+                style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1.5rem', padding: 0 }}
+              >←</button>
               <h2 style={{ margin: 0 }}>
                 {tick ? '✏️ Bewertung bearbeiten' : '🎉 Route geschafft!'}
               </h2>
@@ -166,9 +182,9 @@ function TickButton({ routeId }) {
             <p style={{ marginBottom: '0.75rem', color: '#aaa' }}>Wie hast du sie geschafft? *</p>
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
               {[
-                { key: 'flash', emoji: '⚡', label: 'Flash', desc: '1. Versuch' },
-                { key: 'second_try', emoji: '2️⃣', label: '2. Versuch', desc: '2. Versuch' },
-                { key: 'geschafft', emoji: '✅', label: 'Geschafft', desc: 'Mehrere Versuche' },
+                { key: 'flash',      emoji: '⚡', label: 'Flash',      desc: '1. Versuch' },
+                { key: 'second_try', emoji: '🔄', label: '2nd Try',    desc: '2. Versuch' },
+                { key: 'done',       emoji: '✅', label: 'Send',       desc: 'Mehrere Versuche' },
               ].map(option => (
                 <div
                   key={option.key}
@@ -190,15 +206,11 @@ function TickButton({ routeId }) {
             {/* Sterne */}
             <p style={{ marginBottom: '0.75rem', color: '#aaa' }}>Bewertung (optional)</p>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-              {[1, 2, 3, 4, 5].map(stern => (
+              {[1,2,3,4,5].map(stern => (
                 <span
                   key={stern}
                   onClick={() => setSterne(stern === sterne ? 0 : stern)}
-                  style={{
-                    fontSize: '2rem', cursor: 'pointer',
-                    color: stern <= sterne ? '#FFD700' : '#333',
-                    transition: 'color 0.2s'
-                  }}
+                  style={{ fontSize: '2rem', cursor: 'pointer', color: stern <= sterne ? '#FFD700' : '#333', transition: 'color 0.2s' }}
                 >★</span>
               ))}
             </div>
@@ -206,9 +218,8 @@ function TickButton({ routeId }) {
             {/* Schwierigkeitsgrad */}
             <p style={{ marginBottom: '0.75rem', color: '#aaa' }}>Schwierigkeitsgrad (optional)</p>
             <div style={{
-              display: 'flex', gap: '0.5rem',
-              overflowX: 'auto', paddingBottom: '0.5rem',
-              marginBottom: '1.5rem',
+              display: 'flex', gap: '0.5rem', overflowX: 'auto',
+              paddingBottom: '0.5rem', marginBottom: '1.5rem',
               scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a'
             }}>
               {grade.map(g => (
@@ -243,7 +254,6 @@ function TickButton({ routeId }) {
               }}
             />
 
-            {/* Buttons */}
             <div style={{ display: 'flex', gap: '1rem' }}>
               {tick && (
                 <button
@@ -251,9 +261,7 @@ function TickButton({ routeId }) {
                   style={{ flex: 1, borderColor: '#ff4444', color: '#ff4444' }}
                   onClick={tickLoeschen}
                   disabled={laden}
-                >
-                  Tick löschen
-                </button>
+                >Send löschen</button>
               )}
               <button
                 className="btn"
