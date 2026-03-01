@@ -9,6 +9,7 @@ function HalleEinstellungen() {
   const [mitglieder, setMitglieder] = useState([])
   const [nutzer, setNutzer] = useState(null)
   const [meineRolle, setMeineRolle] = useState(null)
+  const [istSuperAdmin, setIstSuperAdmin] = useState(false)
   const [laden, setLaden] = useState(true)
   const [fehler, setFehler] = useState('')
   const [erfolg, setErfolg] = useState('')
@@ -22,21 +23,36 @@ function HalleEinstellungen() {
         .from('gyms').select('*').eq('id', gymId).single()
       setHalle(halleData)
 
+      // Super Admin prüfen
+      const { data: superAdminCheck } = await supabase
+        .from('profiles').select('is_app_admin')
+        .eq('id', session?.user?.id).single()
+      const superAdmin = superAdminCheck?.is_app_admin === true
+      setIstSuperAdmin(superAdmin)
+
+      // Meine Rolle in dieser Halle
       const { data: meineRolleDaten } = await supabase
         .from('gym_members').select('role')
         .eq('gym_id', gymId).eq('user_id', session?.user?.id).single()
-      setMeineRolle(meineRolleDaten?.role || null)
 
-      const { data: mitgliederDaten, error: mitgliederFehler } = await supabase
+      if (superAdmin) {
+        setMeineRolle('admin')
+      } else {
+        setMeineRolle(meineRolleDaten?.role || null)
+      }
+
+      // Mitglieder laden
+      const { data: mitgliederDaten } = await supabase
         .from('gym_members').select('*, profiles(username, avatar_url)')
         .eq('gym_id', gymId).order('created_at', { ascending: true })
-        console.log('Mitglieder:', mitgliederDaten, 'Fehler:', mitgliederFehler)
-        setMitglieder(mitgliederDaten || [])
+      setMitglieder(mitgliederDaten || [])
 
       setLaden(false)
     }
     datenLaden()
   }, [gymId])
+
+  const istAdmin = meineRolle === 'admin'
 
   async function rolleAendern(userId, neueRolle) {
     const { error } = await supabase
@@ -72,8 +88,6 @@ function HalleEinstellungen() {
   if (laden) return <div className="container"><p>Lädt...</p></div>
   if (!meineRolle) return <div className="container"><h1>Kein Zugriff</h1></div>
 
-  const istAdmin = meineRolle === 'admin'
-
   return (
     <div className="container" style={{ maxWidth: '700px' }}>
       <Link to={`/halle/${gymId}`} style={{ color: '#aaa', textDecoration: 'none', fontSize: '0.9rem' }}>
@@ -83,6 +97,7 @@ function HalleEinstellungen() {
       <h1 style={{ marginTop: '0.5rem' }}>⚙️ Einstellungen</h1>
       <p style={{ marginBottom: '2rem' }}>
         für <strong style={{ color: '#ff6b00' }}>{halle?.name}</strong>
+        {istSuperAdmin && <span style={{ color: '#ff6b00', fontSize: '0.8rem', marginLeft: '0.5rem' }}>👑 Super Admin</span>}
       </p>
 
       {fehler && <p style={{ color: '#ff4444', marginBottom: '1rem' }}>{fehler}</p>}
@@ -100,10 +115,11 @@ function HalleEinstellungen() {
               <div style={{
                 width: '40px', height: '40px', borderRadius: '50%',
                 background: '#ff6b00', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0
+                justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0,
+                overflow: 'hidden'
               }}>
                 {m.profiles?.avatar_url
-                  ? <img src={m.profiles.avatar_url} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                  ? <img src={m.profiles.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : '🧗'}
               </div>
 
@@ -126,10 +142,9 @@ function HalleEinstellungen() {
                 </div>
               </div>
 
-              {/* Aktionen – nur Admin darf andere ändern, nicht sich selbst */}
               {istAdmin && !istIchSelbst && (
                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                  {m.role !== 'moderator' && m.role !== 'admin' && (
+                  {m.role === 'member' && (
                     <button
                       onClick={() => rolleAendern(m.user_id, 'moderator')}
                       style={{
@@ -147,7 +162,7 @@ function HalleEinstellungen() {
                         color: '#aaa', padding: '0.3rem 0.6rem',
                         borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem'
                       }}
-                    >Entfernen</button>
+                    >Mod entfernen</button>
                   )}
                   {!zielIstAdmin && (
                     <button
@@ -166,7 +181,7 @@ function HalleEinstellungen() {
         })}
       </div>
 
-      {/* Halle löschen – nur Admin */}
+      {/* Halle löschen */}
       {istAdmin && (
         <div style={{
           padding: '1.5rem', borderRadius: '12px',
