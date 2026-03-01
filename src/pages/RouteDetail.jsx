@@ -104,7 +104,7 @@ function RouteDetail() {
       const bildHoehe = window.innerHeight * 0.8
       // Pan muss die Abweichung * zoom ausgleichen
       const startPanX = -(abweichungX / 100) * bildBreite * startZoom
-      const startPanY = -(abweichungY / 100) * bildHoehe * startZoom * 0.25
+      const startPanY = -(abweichungY / 100) * bildHoehe * startZoom * 0.1
 
       // Sofort gezoomt auf Route öffnen
       setZoom(startZoom)
