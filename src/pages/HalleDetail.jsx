@@ -291,11 +291,11 @@ function HalleDetail() {
             const sektion = sektionen.find(s => s.id === route.section_id)
             return (
               <div
-                key={route.id}
-                className="card"
-                style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}
-                onClick={() => navigate(`/route/${route.id}`)}
-              >
+                 key={route.id}
+                  className="card"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', minHeight: '72px' }}
+                  onClick={() => navigate(`/route/${route.id}`)}
+                >
                 {route.image_url ? (
                   <img src={route.image_url} alt={route.name} style={{
                     width: '60px', height: '60px', objectFit: 'cover',
