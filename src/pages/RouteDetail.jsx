@@ -94,7 +94,7 @@ function RouteDetail() {
 
     if (route.marker_x !== null) {
       // Starte stark gezoomt auf die Route
-      const startZoom = 8
+      const startZoom = 12
       const markerMitteX = route.marker_x + route.marker_width / 2
       const markerMitteY = route.marker_y + route.marker_height / 2
       const bildBreite = Math.min(window.innerWidth, 900)
