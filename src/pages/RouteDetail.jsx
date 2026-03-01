@@ -100,11 +100,11 @@ function RouteDetail() {
       // Abweichung von der Bildmitte (50%) in Prozent
       const abweichungX = markerMitteX - 50  // z.B. -15%
       const abweichungY = markerMitteY - 50  // z.B. 10%
+      const istMobile = window.innerWidth < 768
       const bildBreite = Math.min(window.innerWidth, 900)
-      const bildHoehe = window.innerHeight * 0.8
-      // Pan muss die Abweichung * zoom ausgleichen
+      const bildHoehe = istMobile ? window.innerWidth * 1.2 : window.innerHeight * 0.8
       const startPanX = -(abweichungX / 100) * bildBreite * startZoom
-      const startPanY = -(abweichungY / 100) * bildHoehe * startZoom * 0.65
+      const startPanY = -(abweichungY / 100) * bildHoehe * startZoom * (istMobile ? 0.5 : 0.65)
 
       // Sofort gezoomt auf Route öffnen
       setZoom(startZoom)
@@ -476,7 +476,7 @@ function RouteDetail() {
             <div style={{
               transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
               transformOrigin: 'center center',
-              transition: letzterPinch.current ? 'none' : 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
+              transition: letzterPinch.current || letzterPan.current ? 'none' : 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }}>
               <img
                 src={sektion.image_url} alt={sektion.name}
@@ -505,16 +505,17 @@ function RouteDetail() {
                     // Pulsieren für die aktuelle Route
                     animation: istAktuell ? 'pulsieren 1.2s ease-in-out 4' : 'none'
                   }}>
-                    <div style={{
+                    {istAktuell && (
+                     <div style={{
                       position: 'absolute', bottom: '100%', left: '0', marginBottom: '3px',
                       background: r.color, color: 'white',
-                      fontSize: istAktuell ? '0.8rem' : '0.65rem',
-                      fontWeight: istAktuell ? 'bold' : 'normal',
+                      fontSize: '0.8rem', fontWeight: 'bold',
                       padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
                       boxShadow: '0 1px 4px rgba(0,0,0,0.5)', pointerEvents: 'none'
                     }}>
-                      {istAktuell ? `📍 ${r.name} · ${r.setter_grade}` : `${r.name} · ${r.setter_grade}`}
+                      📍 {r.name} · {r.setter_grade}
                     </div>
+                  )}
                   </div>
                 )
               })}
