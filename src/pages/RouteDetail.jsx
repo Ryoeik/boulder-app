@@ -513,6 +513,7 @@ function RouteDetail() {
                       padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
                       boxShadow: '0 1px 4px rgba(0,0,0,0.5)', pointerEvents: 'none'
                     }}>
+                      📍
                     </div>
                   )}
                   </div>
