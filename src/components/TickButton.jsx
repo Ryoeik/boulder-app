@@ -22,12 +22,12 @@ function TickButton({ routeId }) {
       if (session?.user) {
         const { data: tickData } = await supabase
           .from('ticks').select('*')
-          .eq('route_id', routeId).eq('user_id', session.user.id).single()
+          .eq('route_id', routeId).eq('user_id', session.user.id).maybeSingle()
         setTick(tickData)
 
         const { data: ratingData } = await supabase
           .from('route_ratings').select('*')
-          .eq('route_id', routeId).eq('user_id', session.user.id).single()
+          .eq('route_id', routeId).eq('user_id', session.user.id).maybeSingle()
         setRating(ratingData)
 
         if (tickData) setGewaehlterTick(tickData.tick_type)

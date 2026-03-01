@@ -16,8 +16,8 @@ function baueBaum(kommentare) {
   return wurzeln
 }
 
-// ─── Einzelner Kommentar (rekursiv) ──────────────────────────────────────────
-function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwort, onLoeschen }) {
+// gymId als Prop hinzugefügt damit der Link korrekt ist
+function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwort, onLoeschen, gymId }) {
   const [antwortOffen, setAntwortOffen] = useState(false)
   const [antwortText, setAntwortText]   = useState('')
   const [senden, setSenden]             = useState(false)
@@ -25,8 +25,6 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
   const p    = profil[k.user_id]
   const name = p?.username || 'Kletterer'
   const einrueckung = Math.min(tiefe, 4) * 20
-
-  // Löschen erlaubt wenn: eigener Kommentar ODER Admin/Mod der Halle
   const darfLoeschen = nutzer && (nutzer.id === k.user_id || darfAllesLoeschen)
 
   async function antwortSenden() {
@@ -51,7 +49,7 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Link
-            to={gymId ? `/halle/${gymId}/nutzer/${k.user_id}` : `/nutzer/${k.user_id}`}
+            to={`/nutzer/${k.user_id}`}
             style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', textDecoration: 'none' }}
           >
             <div style={{
@@ -77,14 +75,12 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
             </div>
           </Link>
 
-          {/* Löschen-Button: sichtbar für Autor + Admin/Mod */}
           {darfLoeschen && (
             <button
               onClick={() => onLoeschen(k.id)}
               title={darfAllesLoeschen && nutzer.id !== k.user_id ? 'Als Moderator löschen' : 'Löschen'}
               style={{
                 background: 'transparent', border: 'none',
-                // Moderator-Löschen in Rot damit klar ist dass es eine erhöhte Berechtigung ist
                 color: darfAllesLoeschen && nutzer.id !== k.user_id ? '#ff4444' : '#555',
                 cursor: 'pointer', fontSize: '1rem', padding: 0
               }}
@@ -95,8 +91,7 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
         <p style={{ color: '#ddd', lineHeight: '1.5', margin: '0 0 0.5rem' }}>{k.text}</p>
 
         {k.video_url && (
-          <video
-            src={k.video_url} controls
+          <video src={k.video_url} controls
             style={{ width: '100%', borderRadius: '8px', marginBottom: '0.5rem', maxHeight: '400px' }}
           />
         )}
@@ -135,8 +130,7 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
               }}
             />
             <button
-              className="btn"
-              onClick={antwortSenden}
+              className="btn" onClick={antwortSenden}
               disabled={senden || !antwortText.trim()}
               style={{ fontSize: '0.85rem', padding: '0.4rem 1rem', opacity: antwortText.trim() ? 1 : 0.5 }}
             >
@@ -146,6 +140,7 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
         )}
       </div>
 
+      {/* gymId wird rekursiv weitergegeben */}
       {k.antworten.map(antwort => (
         <KommentarElement
           key={antwort.id}
@@ -156,14 +151,13 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
           tiefe={tiefe + 1}
           onAntwort={onAntwort}
           onLoeschen={onLoeschen}
+          gymId={gymId}
         />
       ))}
     </div>
   )
 }
 
-// ─── Haupt-Komponente ─────────────────────────────────────────────────────────
-// gymId wird jetzt auch übergeben, um die Rolle des Nutzers zu prüfen
 function Kommentare({ routeId, gymId }) {
   const [alleKommentare, setAlleKommentare] = useState([])
   const [profil, setProfil]                 = useState({})
@@ -179,14 +173,10 @@ function Kommentare({ routeId, gymId }) {
       const user = session?.user ?? null
       setNutzer(user)
 
-      // Rolle in dieser Halle prüfen
-      // Admin und Moderator dürfen alle Kommentare löschen
       if (user && gymId) {
         const { data: mitglied } = await supabase
-          .from('gym_members')
-          .select('role')
-          .eq('gym_id', gymId)
-          .eq('user_id', user.id)
+          .from('gym_members').select('role')
+          .eq('gym_id', gymId).eq('user_id', user.id)
           .maybeSingle()
         const rolle = mitglied?.role
         setDarfAllesLoeschen(rolle === 'admin' || rolle === 'moderator')
@@ -312,6 +302,7 @@ function Kommentare({ routeId, gymId }) {
               tiefe={0}
               onAntwort={antwortSenden}
               onLoeschen={kommentarLoeschen}
+              gymId={gymId}
             />
           ))}
         </div>

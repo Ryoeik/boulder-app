@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { hallenXPBerechnen, levelBerechnen } from '../xpSystem'
+import LevelAnzeige from '../components/LevelAnzeige'
 
 const GRADE = ['?','4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A']
 
@@ -67,24 +69,8 @@ function HallenProfil() {
   }, [gymId, userId])
 
   // XP berechnen
-  function xpBerechnen(ticks, routen) {
-    let xp = 0
-    ticks.forEach(tick => {
-      const route = routen[tick.route_id]
-      if (!route) return
-      xp += 1 // Basis XP
-      const grad = route.setter_grade
-      const gradIndex = GRADE.indexOf(grad)
-      if (gradIndex >= GRADE.indexOf('6B') && gradIndex <= GRADE.indexOf('7B')) xp += 2
-      else if (gradIndex > GRADE.indexOf('7B')) xp += 3
-      else if (gradIndex >= GRADE.indexOf('4A') && gradIndex <= GRADE.indexOf('6A+')) xp += 1
-    })
-    return xp
-  }
+  const xp = hallenXPBerechnen(ticks, routen)
 
-  const xp = xpBerechnen(ticks, routen)
-  const level = Math.min(10, Math.floor(xp / 100) + 1)
-  const xpImLevel = xp % 100
   const anzeigeName = profil?.username || '🧗 Unbekannter Kletterer'
 
   // Schwierigkeitsverteilung
@@ -148,26 +134,7 @@ function HallenProfil() {
       </div>
 
       {/* Hallen Level */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <h2 style={{ margin: 0 }}>🏆 Hallen-Level</h2>
-          <span style={{
-            background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
-            padding: '0.3rem 0.8rem', borderRadius: '20px', fontWeight: 'bold'
-          }}>Level {level}</span>
-        </div>
-        <div style={{ background: '#111', borderRadius: '8px', height: '12px', overflow: 'hidden', marginBottom: '0.5rem' }}>
-          <div style={{
-            height: '100%',
-            width: level >= 10 ? '100%' : `${xpImLevel}%`,
-            background: 'linear-gradient(to right, #ff6b00, #ff9f50)',
-            borderRadius: '8px', transition: 'width 0.4s'
-          }} />
-        </div>
-        <p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>
-          {level >= 10 ? `Max Level erreicht · ${xp} XP gesamt` : `${xpImLevel}/100 XP · ${xp} XP gesamt`}
-        </p>
-      </div>
+      <LevelAnzeige xp={xp} titel="Hallen-Level" />
 
       {/* Statistik Kacheln */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>

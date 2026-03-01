@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabase'
 import { Link } from 'react-router-dom'
 import AccountLoeschen from '../components/AccountLoeschen'
+import { climberXPBerechnen } from '../xpSystem'
+import LevelAnzeige from '../components/LevelAnzeige'
 
 // Fontainebleau-Grade in der richtigen Reihenfolge
 // Wird für den Chart und die Sortierung gebraucht
@@ -168,6 +170,7 @@ function Profil() {
   // ─── Chart-Daten berechnen ───────────────────────────────────────────────────
 
   // Schwierigkeitsverteilung: wie viele Sends pro Grad?
+  const climberXP = climberXPBerechnen(ticks, routen)
   const gradVerteilung = GRADE.map(grad => ({
     grad,
     anzahl: ticks.filter(t => routen[t.route_id]?.setter_grade === grad).length
@@ -325,6 +328,9 @@ function Profil() {
         </div>
       )}
 
+      {/* ── Climber Level ── */}
+      <LevelAnzeige xp={climberXP} titel="🧗 Climber Level" />
+      
       {/* ── Statistik-Kacheln ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
         {[
