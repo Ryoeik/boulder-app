@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import TickButton from '../components/TickButton'
 import Kommentare from '../components/Kommentare'
@@ -12,6 +12,7 @@ const TICK_INFO = {
 
 function RouteDetail() {
   const { routeId } = useParams()
+  const navigate = useNavigate()
   const [route, setRoute]         = useState(null)
   const [sektion, setSektion]     = useState(null)
   const [bewertung, setBewertung] = useState(null)
@@ -91,26 +92,31 @@ function RouteDetail() {
 
     setWandplanRouten(data || [])
 
-    // Zuerst ohne Zoom öffnen
-    setZoom(1); setPanX(0); setPanY(0)
-    setZeigeWandplan(true)
-
-    // Dann nach kurzem Delay auf die aktuelle Route zoomen
     if (route.marker_x !== null) {
+      // Starte stark gezoomt auf die Route
+      const startZoom = 4
+      const markerMitteX = route.marker_x + route.marker_width / 2
+      const markerMitteY = route.marker_y + route.marker_height / 2
+      const bildBreite = Math.min(window.innerWidth, 900)
+      const bildHoehe = window.innerHeight * 0.8
+      const startPanX = (50 - markerMitteX) / 100 * bildBreite * startZoom / 2
+      const startPanY = (50 - markerMitteY) / 100 * bildHoehe * startZoom / 2
+
+      // Sofort gezoomt auf Route öffnen
+      setZoom(startZoom)
+      setPanX(startPanX)
+      setPanY(startPanY)
+      setZeigeWandplan(true)
+
+      // Dann smooth auf Zoom 1 rauszoomen
       setTimeout(() => {
-        const zielZoom = 2.5
-        // Marker-Mitte berechnen (in Prozent 0-100)
-        const markerMitteX = route.marker_x + route.marker_width / 2   // z.B. 35
-        const markerMitteY = route.marker_y + route.marker_height / 2  // z.B. 60
-        // Verschiebung so dass Marker-Mitte im Zentrum landet
-        // Bei zoom=2.5 ist das Bild 2.5x größer, daher müssen wir
-        // die Abweichung von der Mitte (50%) mit zoom skalieren
-        const panXNeu = (50 - markerMitteX) / 100 * window.innerWidth * 0.6
-        const panYNeu = (50 - markerMitteY) / 100 * window.innerHeight * 0.5
-        setZoom(zielZoom)
-        setPanX(panXNeu)
-        setPanY(panYNeu)
-      }, 150)
+        setZoom(1)
+        setPanX(0)
+        setPanY(0)
+      }, 300)
+    } else {
+      setZoom(1); setPanX(0); setPanY(0)
+      setZeigeWandplan(true)
     }
   }
 
@@ -466,7 +472,7 @@ function RouteDetail() {
             <div style={{
               transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
               transformOrigin: 'center center',
-              transition: letzterPinch.current ? 'none' : 'transform 0.35s ease-out'
+              transition: letzterPinch.current ? 'none' : 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }}>
               <img
                 src={sektion.image_url} alt={sektion.name}
@@ -478,7 +484,12 @@ function RouteDetail() {
               {wandplanRouten.map(r => {
                 const istAktuell = r.id === route.id
                 return (
-                  <div key={r.id} style={{
+                  <div
+                    key={r.id}
+                    onClick={() => { setZeigeWandplan(false); navigate(`/route/${r.id}`) }}
+                    style={{
+                      cursor: 'pointer',
+
                     position: 'absolute',
                     left: `${r.marker_x}%`, top: `${r.marker_y}%`,
                     width: `${r.marker_width}%`, height: `${r.marker_height}%`,
