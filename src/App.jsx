@@ -14,6 +14,7 @@ import SektionErstellen from './pages/SektionErstellen'
 import SektionDetail from './pages/SektionDetail'
 import RouteDetail from './pages/RouteDetail'
 import WandplanEditor from './pages/WandplanEditor'
+import HalleEinstellungen from './pages/HalleEinstellungen'
 
 function App() {
   const [nutzer, setNutzer] = useState(null)
@@ -68,6 +69,7 @@ function App() {
         <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
         <Route path="/route/:routeId" element={<RouteDetail />} />
         <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
+        <Route path="/halle/:gymId/einstellungen" element={<HalleEinstellungen />} />
       </Routes>
     </BrowserRouter>
   )

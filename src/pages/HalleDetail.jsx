@@ -124,7 +124,17 @@ function HalleDetail() {
         >
           Sektionen & Routen verwalten
         </Link>
+        
       )}
+
+        <Link
+            to={`/halle/${id}/einstellungen`}
+            className="btn btn-outline"
+              style={{ marginTop: '0.5rem', marginLeft: '0.5rem', display: 'inline-block' }}
+               >
+                ⚙️ Einstellungen
+          </Link>
+
 
       {/* Sektionen Karussell */}
       {sektionen.filter(s => s.image_url).length > 0 && (
