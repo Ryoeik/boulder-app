@@ -51,7 +51,7 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Link
-            to={`/nutzer/${k.user_id}`}
+            to={gymId ? `/halle/${gymId}/nutzer/${k.user_id}` : `/nutzer/${k.user_id}`}
             style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', textDecoration: 'none' }}
           >
             <div style={{

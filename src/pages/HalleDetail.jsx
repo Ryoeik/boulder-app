@@ -12,6 +12,7 @@ function HalleDetail() {
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
   const [nutzerRolle, setNutzerRolle] = useState(null)
+  const [nutzerId, setNutzerId] = useState(null)
   const [mitgliedschaft, setMitgliedschaft] = useState(null)
   const [beitretenLaden, setBeitretenLaden] = useState(false)
   const [vollbildSektion, setVollbildSektion] = useState(null)
@@ -56,6 +57,7 @@ function HalleDetail() {
 
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
+        setNutzerId(session.user.id)
         const { data: mitglied } = await supabase
           .from('gym_members').select('role')
           .eq('gym_id', id).eq('user_id', session.user.id).single()
@@ -140,6 +142,16 @@ function HalleDetail() {
               {beitretenLaden ? '...' : '🤝 Beitreten'}
             </button>
           )
+        )}
+    
+        {nutzerId && (
+          <Link
+          to={`/halle/${id}/nutzer/${nutzerId}`}
+          className="btn btn-outline"
+          style={{ marginTop: '1rem', marginRight: '0.5rem', display: 'inline-block' }}
+        >
+          👤 Mein Hallenprofil
+        </Link>
         )}
         {istAdmin && (
           <Link to={`/halle/${id}/sektionen`} className="btn btn-outline">
