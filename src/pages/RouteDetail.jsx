@@ -94,13 +94,13 @@ function RouteDetail() {
 
     if (route.marker_x !== null) {
       // Starte stark gezoomt auf die Route
-      const startZoom = 4
+      const startZoom = 8
       const markerMitteX = route.marker_x + route.marker_width / 2
       const markerMitteY = route.marker_y + route.marker_height / 2
       const bildBreite = Math.min(window.innerWidth, 900)
       const bildHoehe = window.innerHeight * 0.8
-      const startPanX = (50 - markerMitteX) / 100 * bildBreite * startZoom / 2
-      const startPanY = (50 - markerMitteY) / 100 * bildHoehe * startZoom / 2
+      const startPanX = (50 - markerMitteX) / 100 * bildBreite * startZoom / 1.5
+      const startPanY = (50 - markerMitteY) / 100 * bildHoehe * startZoom / 1.5
 
       // Sofort gezoomt auf Route öffnen
       setZoom(startZoom)
