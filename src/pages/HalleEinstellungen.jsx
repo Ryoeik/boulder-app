@@ -23,27 +23,24 @@ function HalleEinstellungen() {
         .from('gyms').select('*').eq('id', gymId).single()
       setHalle(halleData)
 
-      // Super Admin prüfen
-      const { data: superAdminCheck } = await supabase
+      // Super Admin Status aus dem Profil prüfen
+      const { data: profileData } = await supabase
         .from('profiles').select('is_app_admin')
         .eq('id', session?.user?.id).single()
-      const superAdmin = superAdminCheck?.is_app_admin === true
+      
+      const superAdmin = profileData?.is_app_admin === true
       setIstSuperAdmin(superAdmin)
 
-      // Meine Rolle in dieser Halle
+      // Meine lokale Rolle in dieser Halle laden
       const { data: meineRolleDaten } = await supabase
         .from('gym_members').select('role')
         .eq('gym_id', gymId).eq('user_id', session?.user?.id).single()
 
-      if (superAdmin) {
-        setMeineRolle('admin')
-      } else {
-        setMeineRolle(meineRolleDaten?.role || null)
-      }
-
+      setMeineRolle(meineRolleDaten?.role || null)
+      
       // Mitglieder laden
       const { data: mitgliederDaten } = await supabase
-        .from('gym_members').select('*, profiles(username, avatar_url)')
+        .from('gym_members').select('*, profiles(username, avatar_url, id)')
         .eq('gym_id', gymId).order('created_at', { ascending: true })
       setMitglieder(mitgliederDaten || [])
 
@@ -52,7 +49,8 @@ function HalleEinstellungen() {
     datenLaden()
   }, [gymId])
 
-  const istAdmin = meineRolle === 'admin'
+  // Berechtigung: Entweder lokaler Admin ODER globaler SuperAdmin
+  const hatAdminRechte = meineRolle === 'admin' || istSuperAdmin
   const [bildLaden, setBildLaden] = useState(false)
 
   async function hallenbildHochladen(e) {
@@ -87,13 +85,32 @@ function HalleEinstellungen() {
     setTimeout(() => setErfolg(''), 2000)
   }
 
+  // Löscht nur die Verbindung zur Halle
   async function mitgliedEntfernen(userId) {
+    if (!window.confirm("Mitglied wirklich aus der Halle entfernen?")) return
     const { error } = await supabase
       .from('gym_members').delete()
       .eq('gym_id', gymId).eq('user_id', userId)
 
     if (error) { setFehler('Fehler: ' + error.message); return }
     setMitglieder(mitglieder.filter(m => m.user_id !== userId))
+  }
+
+  // SuperAdmin-Funktion: Löscht den kompletten Account (Profil)
+  async function nutzerKontoLoeschen(userId, username) {
+    if (!window.confirm(`VORSICHT: Willst du das Konto von "${username}" wirklich komplett löschen? Das löscht alle seine Daten App-weit!`)) return
+
+    // Hinweis: Supabase Auth-User können nur über Edge Functions oder Admin API gelöscht werden.
+    // Dieser Call löscht den Eintrag in der 'profiles' Tabelle. 
+    // Durch 'ON DELETE CASCADE' in der DB werden meist auch die gym_members gelöscht.
+    const { error } = await supabase.from('profiles').delete().eq('id', userId)
+
+    if (error) {
+      setFehler('Fehler beim Löschen des Kontos: ' + error.message)
+    } else {
+      setMitglieder(mitglieder.filter(m => m.user_id !== userId))
+      setErfolg('Konto erfolgreich gelöscht.')
+    }
   }
 
   async function halleLoeschen() {
@@ -105,8 +122,7 @@ function HalleEinstellungen() {
   }
 
   if (laden) return <div className="container"><p>Lädt...</p></div>
-  if (!meineRolle && !istSuperAdmin) return <div className="container"><h1>Kein Zugriff</h1></div>
-
+  if (!hatAdminRechte) return <div className="container"><h1>Kein Zugriff</h1></div>
 
   return (
     <div className="container" style={{ maxWidth: '700px' }}>
@@ -117,11 +133,11 @@ function HalleEinstellungen() {
       <h1 style={{ marginTop: '0.5rem' }}>Einstellungen</h1>
       <p style={{ marginBottom: '2rem' }}>
         für <strong style={{ color: '#ff6b00' }}>{halle?.name}</strong>
-        {istSuperAdmin && <span style={{ color: '#ff6b00', fontSize: '0.8rem', marginLeft: '0.5rem' }}>👑 Super Admin</span>}
+        {istSuperAdmin && <span style={{ color: '#ff6b00', fontSize: '0.8rem', marginLeft: '0.5rem' }}>👑 Super Admin Modus</span>}
       </p>
 
-      {/* Hallenbild */}
-      {istAdmin && (
+      {/* Hallenbild - Nur für Hallen-Admins oder SuperAdmin */}
+      {hatAdminRechte && (
         <div className="card" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{
             width: '80px', height: '80px', borderRadius: '12px',
@@ -152,7 +168,7 @@ function HalleEinstellungen() {
       {fehler && <p style={{ color: '#ff4444', marginBottom: '1rem' }}>{fehler}</p>}
       {erfolg && <p style={{ color: '#00c851', marginBottom: '1rem' }}>✅ {erfolg}</p>}
 
-      {/* Mitglieder */}
+      {/* Mitgliederliste */}
       <h2 style={{ marginBottom: '1rem' }}>👥 Mitglieder ({mitglieder.length})</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2rem' }}>
         {mitglieder.map(m => {
@@ -193,47 +209,44 @@ function HalleEinstellungen() {
                 </div>
               </div>
 
-              {istAdmin && !istIchSelbst && (
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                  {m.role === 'member' && (
-                    <button
-                      onClick={() => rolleAendern(m.user_id, 'moderator')}
-                      style={{
-                        background: 'rgba(100,149,237,0.1)', border: '1px solid #6495ED',
-                        color: '#6495ED', padding: '0.3rem 0.6rem',
-                        borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem'
-                      }}
-                    >🛡️ Mod</button>
-                  )}
-                  {m.role === 'moderator' && (
-                    <button
-                      onClick={() => rolleAendern(m.user_id, 'member')}
-                      style={{
-                        background: 'transparent', border: '1px solid #444',
-                        color: '#aaa', padding: '0.3rem 0.6rem',
-                        borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem'
-                      }}
-                    >Mod entfernen</button>
-                  )}
-                  {!zielIstAdmin && (
-                    <button
-                      onClick={() => mitgliedEntfernen(m.user_id)}
-                      style={{
-                        background: 'transparent', border: '1px solid #ff4444',
-                        color: '#ff4444', padding: '0.3rem 0.6rem',
-                        borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem'
-                      }}
-                    >🗑️</button>
-                  )}
-                </div>
-              )}
+              {/* Steuerungs-Buttons */}
+              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                {/* Rollenverwaltung (nur für lokale Admins oder SuperAdmins) */}
+                {hatAdminRechte && !istIchSelbst && (
+                  <>
+                    {m.role === 'member' && (
+                      <button onClick={() => rolleAendern(m.user_id, 'moderator')} className="btn-small">🛡️ Mod</button>
+                    )}
+                    {m.role === 'moderator' && (
+                      <button onClick={() => rolleAendern(m.user_id, 'member')} className="btn-small">Mod entfernen</button>
+                    )}
+                    
+                    {/* Aus Halle entfernen */}
+                    {!zielIstAdmin && (
+                      <button onClick={() => mitgliedEntfernen(m.user_id)} style={{ color: '#ff4444', border: '1px solid #ff4444' }} className="btn-small">🗑️</button>
+                    )}
+                  </>
+                )}
+
+                {/* SUPERADMIN SPECIAL: Komplettes Konto löschen */}
+                {istSuperAdmin && !istIchSelbst && (
+                  <button 
+                    onClick={() => nutzerKontoLoeschen(m.user_id, m.profiles?.username)}
+                    style={{ background: '#ff4444', color: 'white', border: 'none' }} 
+                    className="btn-small"
+                    title="Gesamtes Benutzerkonto löschen"
+                  >
+                    💀 KONTO LÖSCHEN
+                  </button>
+                )}
+              </div>
             </div>
           )
         })}
       </div>
 
-      {/* Halle löschen */}
-      {istAdmin && (
+      {/* Halle löschen Bereich */}
+      {hatAdminRechte && (
         <div style={{
           padding: '1.5rem', borderRadius: '12px',
           border: '1px solid rgba(255,68,68,0.3)',
@@ -241,7 +254,7 @@ function HalleEinstellungen() {
         }}>
           <h2 style={{ color: '#ff4444', marginBottom: '0.5rem' }}>⚠️ Gefahrenzone</h2>
           <p style={{ color: '#aaa', marginBottom: '1rem', fontSize: '0.9rem' }}>
-            Das Löschen der Halle entfernt alle Sektionen, Routen und Daten unwiderruflich.
+            {istSuperAdmin ? "Als SuperAdmin kannst du diese Halle für alle löschen." : "Das Löschen der Halle entfernt alle Sektionen und Routen unwiderruflich."}
           </p>
           <button
             onClick={halleLoeschen}

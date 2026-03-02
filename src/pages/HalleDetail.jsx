@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import TickButton from '../components/TickButton'
 import { farbName } from '../utils/farben'
+import { berechneKommunityGrad } from '../utils/kommunityGrad'
 
 function HalleDetail() {
   const { gymId: id } = useParams()
@@ -12,6 +13,7 @@ function HalleDetail() {
   const [sektionen, setSektionen] = useState([])
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
+  const [kommunityGrade, setKommunityGrade] = useState({}) // routeId -> kommunityGrad
   const [nutzerRolle, setNutzerRolle] = useState(null)
   const [nutzerId, setNutzerId] = useState(null)
   const [vollbildBild, setVollbildBild] = useState(null)
@@ -41,21 +43,45 @@ function HalleDetail() {
         .from('routes').select('*').eq('gym_id', id).eq('is_active', true)
       setRouten(routenData || [])
 
+      const routeIds = (routenData || []).map(r => r.id)
+
+      // Sterne-Bewertungen
       const { data: ratingsData } = await supabase
-        .from('route_ratings').select('route_id, stars')
-        .in('route_id', (routenData || []).map(r => r.id))
+        .from('route_ratings').select('route_id, stars, community_grade')
+        .in('route_id', routeIds)
 
       const bewertungsMap = {}
       const counts = {}
+      // community grades pro Route sammeln
+      const communityGradeMap = {} // routeId -> [grade, grade, ...]
+
       ;(ratingsData || []).forEach(r => {
-        if (!bewertungsMap[r.route_id]) { bewertungsMap[r.route_id] = 0; counts[r.route_id] = 0 }
-        bewertungsMap[r.route_id] += r.stars
-        counts[r.route_id]++
+        // Sterne
+        if (r.stars) {
+          if (!bewertungsMap[r.route_id]) { bewertungsMap[r.route_id] = 0; counts[r.route_id] = 0 }
+          bewertungsMap[r.route_id] += r.stars
+          counts[r.route_id]++
+        }
+        // Community-Grade sammeln
+        if (r.community_grade) {
+          if (!communityGradeMap[r.route_id]) communityGradeMap[r.route_id] = []
+          communityGradeMap[r.route_id].push(r.community_grade)
+        }
       })
+
       Object.keys(bewertungsMap).forEach(id => {
         bewertungsMap[id] = (bewertungsMap[id] / counts[id]).toFixed(1)
       })
       setBewertungen(bewertungsMap)
+
+      // Community-Grad pro Route berechnen
+      const kGradeMap = {}
+      ;(routenData || []).forEach(route => {
+        const grades = communityGradeMap[route.id] || []
+        const kGrad = berechneKommunityGrad(grades, route.setter_grade)
+        if (kGrad) kGradeMap[route.id] = kGrad
+      })
+      setKommunityGrade(kGradeMap)
 
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
@@ -94,7 +120,6 @@ function HalleDetail() {
     setBeitretenLaden(false)
   }
 
-  // Sektionen mit gleichem Namen zusammenfassen
   const eindeutigeSektionen = sektionen.reduce((acc, s) => {
     if (!acc.find(x => x.name === s.name)) acc.push(s)
     return acc
@@ -128,7 +153,6 @@ function HalleDetail() {
       </div>
       <p>📍 {halle.city}</p>
 
-      {/* Buttons */}
       {/* Buttons */}
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
         {nutzerId && (
@@ -216,41 +240,33 @@ function HalleDetail() {
         </div>
       )}
 
-      {/* Filterleiste – horizontal scrollbar */}
+      {/* Filterleiste */}
       <div style={{
         marginTop: '2rem',
         display: 'flex', gap: '0.75rem', alignItems: 'center',
         overflowX: 'auto', paddingBottom: '0.5rem',
         scrollbarWidth: 'none'
       }}>
-        <select value={filterSektion}
-          onChange={e => setFilterSektion(e.target.value)} style={selectStyle}>
+        <select value={filterSektion} onChange={e => setFilterSektion(e.target.value)} style={selectStyle}>
           <option value="alle">Alle Sektionen</option>
           {eindeutigeSektionen.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
-        <select value={filterGradVon}
-          onChange={e => setFilterGradVon(e.target.value)} style={selectStyle}>
+        <select value={filterGradVon} onChange={e => setFilterGradVon(e.target.value)} style={selectStyle}>
           <option value="">Grad von</option>
           {grade.map(g => <option key={g} value={g}>{g}</option>)}
         </select>
-        <select value={filterGradBis}
-          onChange={e => setFilterGradBis(e.target.value)} style={selectStyle}>
+        <select value={filterGradBis} onChange={e => setFilterGradBis(e.target.value)} style={selectStyle}>
           <option value="">Grad bis</option>
           {grade.map(g => <option key={g} value={g}>{g}</option>)}
         </select>
-        <select value={filterSort}
-          onChange={e => setFilterSort(e.target.value)} style={selectStyle}>
+        <select value={filterSort} onChange={e => setFilterSort(e.target.value)} style={selectStyle}>
           <option value="neu">Neueste</option>
           <option value="schwer">Schwerste</option>
           <option value="leicht">Leichteste</option>
         </select>
         <button
           onClick={() => { setFilterSektion('alle'); setFilterGradVon(''); setFilterGradBis(''); setFilterSort('neu') }}
-          style={{
-            background: 'transparent', border: '1px solid #444',
-            color: '#aaa', padding: '0.5rem 0.75rem',
-            borderRadius: '8px', cursor: 'pointer', flexShrink: 0
-          }}
+          style={{ background: 'transparent', border: '1px solid #444', color: '#aaa', padding: '0.5rem 0.75rem', borderRadius: '8px', cursor: 'pointer', flexShrink: 0 }}
         >✕</button>
       </div>
 
@@ -272,13 +288,15 @@ function HalleDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '3rem' }}>
           {gefilterteRouten.map(route => {
             const sektion = sektionen.find(s => s.id === route.section_id)
+            const kGrad = kommunityGrade[route.id]
+            // Community-Grad nur zeigen wenn er vom Setter-Grad abweicht
+            const zeigeKGrad = kGrad && kGrad !== route.setter_grade
             return (
               <div key={route.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.75rem',
                   cursor: 'pointer', padding: '0.6rem 0.75rem',
-                  background: '#111', borderRadius: '12px',
-                  border: '1px solid #1a1a1a'
+                  background: '#111', borderRadius: '12px', border: '1px solid #1a1a1a'
                 }}
                 onClick={() => navigate(`/route/${route.id}`)}
               >
@@ -296,10 +314,11 @@ function HalleDetail() {
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Farbe als Name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: route.color, flexShrink: 0 }} />
                     <strong style={{ color: 'white', fontSize: '0.95rem' }}>{farbName(route.color)}</strong>
+
+                    {/* Setter-Grad */}
                     <span style={{
                       background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
                       padding: '0.15rem 0.5rem', borderRadius: '20px',
@@ -307,7 +326,20 @@ function HalleDetail() {
                     }}>
                       {route.setter_grade}
                     </span>
+
+                    {/* Community-Grad (nur wenn abweichend) */}
+                    {zeigeKGrad && (
+                      <span style={{
+                        background: 'rgba(255,107,0,0.05)', color: '#aaa',
+                        padding: '0.15rem 0.5rem', borderRadius: '20px',
+                        fontSize: '0.75rem', flexShrink: 0,
+                        border: '1px solid rgba(255,107,0,0.2)'
+                      }}>
+                        👥 {kGrad}
+                      </span>
+                    )}
                   </div>
+
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {sektion && <span style={{ fontSize: '0.8rem', color: '#666' }}>📍 {sektion.name}</span>}
                     {bewertungen[route.id] && (
@@ -318,7 +350,7 @@ function HalleDetail() {
 
                 {/* Tick Button */}
                 <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
-                  <TickButton routeId={route.id} />
+                  <TickButton routeId={route.id} setterGrade={route.setter_grade} />
                 </div>
               </div>
             )
@@ -360,10 +392,8 @@ function HalleDetail() {
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.97)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 9999, overflow: 'hidden',
-            touchAction: 'none'
+            zIndex: 9999, overflow: 'hidden', touchAction: 'none'
           }}>
-            {/* Schließen */}
             <button onClick={() => { setVollbildBild(null); setVollbildMarker([]) }} style={{
               position: 'absolute', top: '1rem', right: '1rem',
               background: 'rgba(255,255,255,0.1)', border: 'none',
@@ -371,7 +401,6 @@ function HalleDetail() {
               cursor: 'pointer', fontSize: '1.2rem', zIndex: 10
             }}>✕</button>
 
-            {/* Navigation Pfeile */}
             {sektionenMitBild.length > 1 && (
               <>
                 <button onClick={vorherigesBild} style={{
@@ -389,7 +418,6 @@ function HalleDetail() {
               </>
             )}
 
-            {/* Punkte Indikator */}
             {sektionenMitBild.length > 1 && (
               <div style={{
                 position: 'absolute', bottom: '1rem', left: '50%', transform: 'translateX(-50%)',
@@ -404,7 +432,6 @@ function HalleDetail() {
               </div>
             )}
 
-            {/* Bild mit Zoom */}
             <ZoomBild
               src={vollbildBild}
               marker={vollbildMarker}
@@ -432,8 +459,6 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   function panGrenzen(neuX, neuY, aktZoom) {
     const img = imgRef.current
     if (!img) return { x: neuX, y: neuY }
-    const bildBreite = img.naturalWidth
-    const bildHoehe = img.naturalHeight
     const dargestellteBreite = img.clientWidth
     const dargestellteHoehe = img.clientHeight
     const maxPanX = Math.max(0, (dargestellteBreite * aktZoom - window.innerWidth) / 2)
@@ -461,14 +486,7 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
     e.preventDefault()
     if (e.touches.length === 2) {
       const mitte = pinchMitte(e.touches)
-      letzterPinch.current = {
-        abstand: pinchAbstand(e.touches),
-        zoom,
-        mitteX: mitte.x,
-        mitteY: mitte.y,
-        panX,
-        panY
-      }
+      letzterPinch.current = { abstand: pinchAbstand(e.touches), zoom, mitteX: mitte.x, mitteY: mitte.y, panX, panY }
       letzterPan.current = null
       touchStart.current = null
     } else if (e.touches.length === 1) {
@@ -483,8 +501,6 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
     e.preventDefault()
     if (e.touches.length === 2 && letzterPinch.current) {
       const neuerZoom = Math.max(1, Math.min(5, letzterPinch.current.zoom * (pinchAbstand(e.touches) / letzterPinch.current.abstand)))
-      
-      // Zoom um den Pinch-Mittelpunkt
       const rect = containerRef.current?.getBoundingClientRect()
       if (rect) {
         const mitte = pinchMitte(e.touches)
@@ -495,14 +511,9 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
         const zoomFaktor = neuerZoom / letzterPinch.current.zoom
         const neuesPanX = offsetX - (offsetX - letzterPinch.current.panX) * zoomFaktor
         const neuesPanY = offsetY - (offsetY - letzterPinch.current.panY) * zoomFaktor
-       if (neuerZoom === 1) {
-          setPanX(0); setPanY(0)
-        } else {
-          const { x, y } = panGrenzen(neuesPanX, neuesPanY, neuerZoom)
-          setPanX(x); setPanY(y)
-        }
+        if (neuerZoom === 1) { setPanX(0); setPanY(0) }
+        else { const { x, y } = panGrenzen(neuesPanX, neuesPanY, neuerZoom); setPanX(x); setPanY(y) }
       }
-      
       setZoom(neuerZoom)
       touchStart.current = null
     } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
@@ -537,33 +548,19 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   }
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: '100vw', height: '100vh',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        overflow: 'hidden', touchAction: 'none'
-      }}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onDoubleClick={onDoubleClick}
+    <div ref={containerRef}
+      style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', touchAction: 'none' }}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onDoubleClick={onDoubleClick}
     >
       <div style={{
         position: 'relative',
         transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
         transformOrigin: 'center',
         transition: letzterPinch.current ? 'none' : 'transform 0.05s',
-        cursor: zoom > 1 ? 'grab' : 'default',
-        userSelect: 'none'
+        cursor: zoom > 1 ? 'grab' : 'default', userSelect: 'none'
       }}>
-         <img ref={imgRef} src={src} alt="Vollbild"
-          style={{
-            maxWidth: '95vw', maxHeight: '85vh',
-            width: 'auto', height: 'auto',
-            objectFit: 'contain', borderRadius: '8px',
-            display: 'block', userSelect: 'none', pointerEvents: 'none'
-          }}
+        <img ref={imgRef} src={src} alt="Vollbild"
+          style={{ maxWidth: '95vw', maxHeight: '85vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: '8px', display: 'block', userSelect: 'none', pointerEvents: 'none' }}
           draggable={false}
         />
         {marker.map(r => (
@@ -590,14 +587,8 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
 }
 
 const selectStyle = {
-  padding: '0.5rem 0.75rem',
-  borderRadius: '8px',
-  border: '1px solid #2a2a2a',
-  background: '#111',
-  color: 'white',
-  fontSize: '0.9rem',
-  cursor: 'pointer',
-  flexShrink: 0
+  padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #2a2a2a',
+  background: '#111', color: 'white', fontSize: '0.9rem', cursor: 'pointer', flexShrink: 0
 }
 
 const iconBtnStyle = {

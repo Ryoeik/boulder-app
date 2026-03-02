@@ -165,11 +165,20 @@ function SektionErstellen() {
                   )}
                 </Link>
                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                  <button
-                    onClick={() => formOeffnen(sektion)}
+                  <Link
+                    to={`/halle/${gymId}/sektion/${sektion.id}/wandplan`}
                     style={{
                       background: 'transparent', border: '1px solid #ff6b00',
                       color: '#ff6b00', padding: '0.4rem 0.75rem',
+                      borderRadius: '6px', cursor: 'pointer', textDecoration: 'none',
+                      display: 'flex', alignItems: 'center'
+                    }}
+                  >🗺️</Link>
+                  <button
+                    onClick={() => formOeffnen(sektion)}
+                    style={{
+                      background: 'transparent', border: '1px solid #555',
+                      color: '#555', padding: '0.4rem 0.75rem',
                       borderRadius: '6px', cursor: 'pointer'
                     }}
                   >✏️</button>

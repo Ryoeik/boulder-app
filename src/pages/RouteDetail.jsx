@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import TickButton from '../components/TickButton'
 import Kommentare from '../components/Kommentare'
+import { berechneKommunityGrad } from '../utils/kommunityGrad'
 
 const TICK_INFO = {
   flash:      { label: '⚡ Flash',     bg: '#FFD700', text: '#000' },
@@ -12,13 +13,13 @@ const TICK_INFO = {
 
 function RouteDetail() {
   const { routeId } = useParams()
-  const navigate = useNavigate()
   const [route, setRoute]         = useState(null)
   const [sektion, setSektion]     = useState(null)
   const [bewertung, setBewertung] = useState(null)
   const [sends, setSends]         = useState({ gesamt: 0, flash: 0, second_try: 0, done: 0 })
   const [nutzer, setNutzer]       = useState(null)
   const [laden, setLaden]         = useState(true)
+  const [komunityGrad, setKommunityGrad] = useState(null)
 
   // Sends Popup
   const [zeigePopup, setZeigePopup]   = useState(false)
@@ -74,6 +75,15 @@ function RouteDetail() {
         })
       }
 
+      // Community-Grad berechnen
+      if (routeData) {
+        const { data: alleRatings } = await supabase
+          .from('route_ratings').select('community_grade').eq('route_id', routeId)
+        if (alleRatings) {
+          setKommunityGrad(berechneKommunityGrad(alleRatings.map(r => r.community_grade), routeData.setter_grade))
+        }
+      }
+
       setLaden(false)
     }
     datenLaden()
@@ -92,35 +102,26 @@ function RouteDetail() {
 
     setWandplanRouten(data || [])
 
+    // Zuerst ohne Zoom öffnen
+    setZoom(1); setPanX(0); setPanY(0)
+    setZeigeWandplan(true)
+
+    // Dann nach kurzem Delay auf die aktuelle Route zoomen
     if (route.marker_x !== null) {
-      // Starte stark gezoomt auf die Route
-      const startZoom = 8
-      const markerMitteX = route.marker_x + route.marker_width / 2  // z.B. 35%
-      const markerMitteY = route.marker_y + route.marker_height / 2  // z.B. 60%
-      // Abweichung von der Bildmitte (50%) in Prozent
-      const abweichungX = markerMitteX - 50  // z.B. -15%
-      const abweichungY = markerMitteY - 50  // z.B. 10%
-      const istMobile = window.innerWidth < 768
-      const bildBreite = Math.min(window.innerWidth, 900)
-      const bildHoehe = istMobile ? window.innerWidth * 1.2 : window.innerHeight * 0.8
-      const startPanX = -(abweichungX / 100) * bildBreite * startZoom
-      const startPanY = -(abweichungY / 100) * bildHoehe * startZoom * (istMobile ? 0.5 : 0.65)
-
-      // Sofort gezoomt auf Route öffnen
-      setZoom(startZoom)
-      setPanX(startPanX)
-      setPanY(startPanY)
-      setZeigeWandplan(true)
-
-      // Dann smooth auf Zoom 1 rauszoomen
       setTimeout(() => {
-        setZoom(1)
-        setPanX(0)
-        setPanY(0)
-      }, 300)
-    } else {
-      setZoom(1); setPanX(0); setPanY(0)
-      setZeigeWandplan(true)
+        const zielZoom = 2.5
+        // Marker-Mitte berechnen (in Prozent 0-100)
+        const markerMitteX = route.marker_x + route.marker_width / 2   // z.B. 35
+        const markerMitteY = route.marker_y + route.marker_height / 2  // z.B. 60
+        // Verschiebung so dass Marker-Mitte im Zentrum landet
+        // Bei zoom=2.5 ist das Bild 2.5x größer, daher müssen wir
+        // die Abweichung von der Mitte (50%) mit zoom skalieren
+        const panXNeu = (50 - markerMitteX) / 100 * window.innerWidth * 0.6
+        const panYNeu = (50 - markerMitteY) / 100 * window.innerHeight * 0.5
+        setZoom(zielZoom)
+        setPanX(panXNeu)
+        setPanY(panYNeu)
+      }, 150)
     }
   }
 
@@ -214,7 +215,6 @@ function RouteDetail() {
 
   if (laden) return <div className="container"><p>Lädt...</p></div>
   if (!route) return <div className="container"><h1>Route nicht gefunden</h1></div>
-  console.log('route.marker_x:', route.marker_x, 'sektion:', sektion?.image_url, 'hatWandplan:', route.marker_x !== null && !!sektion?.image_url)
 
   // Hat diese Route einen Marker + Wandbild?
   const hatWandplan = route.marker_x !== null && sektion?.image_url
@@ -264,7 +264,15 @@ function RouteDetail() {
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <h1 style={{ marginBottom: '0.25rem' }}>{route.name}</h1>
-              <span style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '1.5rem' }}>{route.setter_grade}</span>
+              {/* Setter-Grad + Community-Grad */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                <span style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '1.5rem' }}>{route.setter_grade}</span>
+                {komunityGrad && komunityGrad !== route.setter_grade && (
+                  <span style={{ fontSize: '0.75rem', color: '#aaa' }}>
+                    Community: <strong style={{ color: '#ff6b00' }}>{komunityGrad}</strong>
+                  </span>
+                )}
+              </div>
             </div>
 
             {sektion && (
@@ -340,7 +348,7 @@ function RouteDetail() {
             >
               📹 Video aufnehmen oder hochladen
               <input type="file" accept="video/mp4,video/quicktime,video/mov"
-               onChange={videoAuswaehlen} style={{ display: 'none' }} />
+                capture="environment" onChange={videoAuswaehlen} style={{ display: 'none' }} />
             </label>
           ) : (
             <div>
@@ -476,7 +484,7 @@ function RouteDetail() {
             <div style={{
               transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
               transformOrigin: 'center center',
-              transition: letzterPinch.current || letzterPan.current ? 'none' : 'transform 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
+              transition: letzterPinch.current ? 'none' : 'transform 0.35s ease-out'
             }}>
               <img
                 src={sektion.image_url} alt={sektion.name}
@@ -488,12 +496,7 @@ function RouteDetail() {
               {wandplanRouten.map(r => {
                 const istAktuell = r.id === route.id
                 return (
-                  <div
-                    key={r.id}
-                    onClick={() => { setZeigeWandplan(false); navigate(`/route/${r.id}`) }}
-                    style={{
-                      cursor: 'pointer',
-
+                  <div key={r.id} style={{
                     position: 'absolute',
                     left: `${r.marker_x}%`, top: `${r.marker_y}%`,
                     width: `${r.marker_width}%`, height: `${r.marker_height}%`,
@@ -505,6 +508,16 @@ function RouteDetail() {
                     // Pulsieren für die aktuelle Route
                     animation: istAktuell ? 'pulsieren 1.2s ease-in-out 4' : 'none'
                   }}>
+                    <div style={{
+                      position: 'absolute', bottom: '100%', left: '0', marginBottom: '3px',
+                      background: r.color, color: 'white',
+                      fontSize: istAktuell ? '0.8rem' : '0.65rem',
+                      fontWeight: istAktuell ? 'bold' : 'normal',
+                      padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.5)', pointerEvents: 'none'
+                    }}>
+                      {istAktuell ? `📍 ${r.name} · ${r.setter_grade}` : `${r.name} · ${r.setter_grade}`}
+                    </div>
                   </div>
                 )
               })}
