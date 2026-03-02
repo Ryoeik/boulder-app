@@ -19,9 +19,6 @@ function Startseite() {
 
   useEffect(() => {
     async function datenLaden() {
-
-  useEffect(() => {
-    async function datenLaden() {
       const { data: { session } } = await supabase.auth.getSession()
       const user = session?.user
       setNutzer(user)
@@ -121,7 +118,7 @@ function Startseite() {
     return (
       <div className="container" style={{ textAlign: 'center', marginTop: '4rem' }}>
         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🪨</div>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Tote Boulder</h1>
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Toter Boulder</h1>
         <p style={{ color: '#aaa', marginBottom: '2rem' }}>
           Die Community-App für Boulder-Fans.
         </p>
