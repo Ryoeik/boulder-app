@@ -92,6 +92,8 @@ function RouteDetail() {
   }, [routeId])
 
   // ── Wandplan öffnen ──────────────────────────────────────────────────────────
+  const [animiereRaus, setAnimiereRaus] = useState(false)
+
   async function wandplanOeffnen() {
     if (!sektion?.image_url) return
 
@@ -103,32 +105,35 @@ function RouteDetail() {
       .not('marker_x', 'is', null)
 
     setWandplanRouten(data || [])
-
-    // Zuerst ohne Zoom öffnen
+    setAnimiereRaus(route.marker_x !== null)
+    // Start: Zoom 1, kein Pan – onLoad setzt sofort auf Marker-Zoom, dann animiert raus
     setZoom(1); setPanX(0); setPanY(0)
     setZeigeWandplan(true)
+  }
 
-    // Dann nach kurzem Delay auf die aktuelle Route zoomen
-    if (route.marker_x !== null) {
-      setTimeout(() => {
-        const img = wandplanImgRef.current
-        if (!img) return
-        const zielZoom = 2.5
-        // Marker-Mitte in Prozent (0-100)
-        const markerMitteX = route.marker_x + route.marker_width / 2
-        const markerMitteY = route.marker_y + route.marker_height / 2
-        // Tatsächliche Bildgröße für korrekte Pan-Berechnung nutzen
-        const bildBreite = img.clientWidth
-        const bildHoehe  = img.clientHeight
-        // Pan so setzen dass Marker-Mitte exakt im Zentrum landet
-        // Formel: pan = (0.5 - markerMitte/100) * bildGrösse * zoom
-        const panXNeu = (0.5 - markerMitteX / 100) * bildBreite * zielZoom
-        const panYNeu = (0.5 - markerMitteY / 100) * bildHoehe  * zielZoom
-        setZoom(zielZoom)
-        setPanX(panXNeu)
-        setPanY(panYNeu)
-      }, 150)
-    }
+  function wandplanBildGeladen() {
+    if (!animiereRaus) return
+    const img = wandplanImgRef.current
+    if (!img) return
+
+    const mx = route.marker_x + route.marker_width  / 2
+    const my = route.marker_y + route.marker_height / 2
+    const startZoom = 4
+
+    // Sofort (ohne Transition) auf Marker springen
+    const startPanX = (0.5 - mx / 100) * img.clientWidth  * startZoom
+    const startPanY = (0.5 - my / 100) * img.clientHeight * startZoom
+    setZoom(startZoom)
+    setPanX(startPanX)
+    setPanY(startPanY)
+
+    // Nach kurzem Moment smooth rauszoomen auf Übersicht
+    setTimeout(() => {
+      setAnimiereRaus(false)
+      setZoom(1)
+      setPanX(0)
+      setPanY(0)
+    }, 600)
   }
 
   // ── Pinch-to-Zoom ────────────────────────────────────────────────────────────
@@ -285,7 +290,7 @@ function RouteDetail() {
               style={{
                 width: '100%', maxHeight: '300px', objectFit: 'cover',
                 borderRadius: '8px',
-                cursor: hatWandplan ? 'zoom-out' : 'default',
+                cursor: hatWandplan ? 'zoom-in' : 'default',
               }}
             />
             {hatWandplan && (
@@ -530,11 +535,12 @@ function RouteDetail() {
             <div style={{
               transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
               transformOrigin: 'center center',
-              transition: letzterPinch.current ? 'none' : 'transform 0.35s ease-out'
+              transition: letzterPinch.current ? 'none' : animiereRaus ? 'none' : zoom === 1 && panX === 0 ? 'transform 0.9s cubic-bezier(0.4,0,0.2,1)' : 'transform 0.2s ease-out'
             }}>
               <img
                 ref={wandplanImgRef}
                 src={sektion.image_url} alt={sektion.name}
+                onLoad={wandplanBildGeladen}
                 style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block', borderRadius: '8px' }}
                 draggable={false}
               />
