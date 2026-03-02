@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Startseite() {
-  const [nutzer, setNutzer] = useState(undefined) // undefined = noch nicht geprüft
+  const [nutzer, setNutzer] = useState(undefined)
   const [meineHallen, setMeineHallen] = useState([])
   const [feed, setFeed] = useState([])
   const [laden, setLaden] = useState(true)
@@ -11,34 +11,28 @@ function Startseite() {
   useEffect(() => {
     async function init() {
       const { data: { session } } = await supabase.auth.getSession()
-      const user = session?.user ?? null
-      setNutzer(user)
+      setNutzer(session?.user ?? null)
     }
     init()
   }, [])
 
   useEffect(() => {
-    if (nutzer === undefined) return // noch nicht initialisiert
+    if (nutzer === undefined) return
 
-    if (!nutzer) {
-      setLaden(false)
-      return
-    }
+    if (!nutzer) { setLaden(false); return }
 
     async function datenLaden() {
-      console.log('datenLaden gestartet für:', nutzer.id)
-      const { data: mitgliedschaften, error: mitgliedFehler } = await supabase
+      const { data: mitgliedschaften } = await supabase
         .from('gym_members').select('gym_id, role').eq('user_id', nutzer.id)
 
       const hallenIds = (mitgliedschaften || []).map(m => m.gym_id)
-
-      console.log('hallenIds:', hallenIds)
       if (hallenIds.length === 0) { setLaden(false); return }
 
       const { data: hallenData } = await supabase
         .from('gyms').select('*').in('id', hallenIds)
       setMeineHallen(hallenData || [])
 
+      // Nur aktive Routen laden – gelöschte/archivierte tauchen im Feed gar nicht erst auf
       const { data: routenData } = await supabase
         .from('routes').select('id, name, color, setter_grade, gym_id, is_active')
         .in('gym_id', hallenIds).eq('is_active', true)
@@ -51,11 +45,13 @@ function Startseite() {
 
       if (routenIds.length > 0) {
         const { data: tickData } = await supabase
-          .from('ticks').select('*').in('route_id', routenIds)
+          .from('ticks').select('*')
+          .in('route_id', routenIds)          // nur Ticks von aktiven Routen
           .order('ticked_at', { ascending: false }).limit(50)
 
         const { data: videoData } = await supabase
-          .from('comments').select('*').in('route_id', routenIds)
+          .from('comments').select('*')
+          .in('route_id', routenIds)          // nur Videos von aktiven Routen
           .not('video_url', 'is', null)
           .order('created_at', { ascending: false }).limit(20)
 
@@ -80,7 +76,10 @@ function Startseite() {
             profil: profileMap[v.user_id], route: routenMap[v.route_id],
             videoUrl: v.video_url, datum: v.created_at
           }))
-        ].sort((a, b) => new Date(b.datum) - new Date(a.datum))
+        ]
+          // Route muss existieren und aktiv sein – filtert gelöschte/archivierte Inhalte raus
+          .filter(item => item.route != null)
+          .sort((a, b) => new Date(b.datum) - new Date(a.datum))
       }
 
       setFeed(feedItems)
@@ -124,6 +123,7 @@ function Startseite() {
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 1rem' }}>
+      {/* Hallen Chips */}
       <div style={{
         display: 'flex', gap: '0.5rem', overflowX: 'auto',
         paddingBottom: '0.5rem', margin: '1rem 0', scrollbarWidth: 'none'
