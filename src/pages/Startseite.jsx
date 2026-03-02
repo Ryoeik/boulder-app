@@ -9,19 +9,24 @@ function Startseite() {
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
-    async function datenLaden() {
-      // Warte kurz damit Mobile die Session laden kann
-      let session = (await supabase.auth.getSession()).data.session
-      if (!session) {
-        await new Promise(resolve => setTimeout(resolve, 500))
-        session = (await supabase.auth.getSession()).data.session
-      }
-      const user = session?.user
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null
       setNutzer(user)
       if (!user) {
+        setMeineHallen([])
+        setFeed([])
         setLaden(false)
-        return
       }
+    })
+    return () => authListener.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (nutzer === null && !laden) return
+    if (nutzer === null) return
+
+    async function datenLaden() {
+      const user = nutzer
 
       // Meine Hallen laden
       const { data: mitgliedschaften } = await supabase
@@ -104,7 +109,7 @@ function Startseite() {
       setLaden(false)
     }
     datenLaden()
-  }, [])
+  }, [nutzer])
 
   if (laden) return <div className="container"><p>Lädt...</p></div>
 
