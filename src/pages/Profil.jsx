@@ -23,6 +23,8 @@ function Profil() {
   const [routen, setRouten]         = useState({})   // id → route objekt (als Map für schnellen Zugriff)
   const [heimhalle, setHeimhalle]   = useState(null)
   const [laden, setLaden]           = useState(true)
+  const [filterGrad, setFilterGrad] = useState('')  //Profil Routen Filter
+  const [filterDatum, setFilterDatum] = useState('')
 
   // Bearbeitungs-States
   const [bearbeiten, setBearbeiten] = useState(false)
@@ -174,13 +176,13 @@ function Profil() {
   const gradVerteilung = GRADE.map(grad => ({
     grad,
     anzahl: ticks.filter(t => routen[t.route_id]?.setter_grade === grad).length
-  })).filter(g => g.anzahl > 0)  // Nur Grade mit mindestens 1 Tick anzeigen
+  }))  // Nur Grade mit mindestens 1 Tick anzeigen
 
   const maxGrad = Math.max(...gradVerteilung.map(g => g.anzahl), 1)
 
   // Sends pro Monat (letzte 6 Monate)
   const heute = new Date()
-  const monate = Array.from({ length: 6 }, (_, i) => {
+  const monate = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(heute.getFullYear(), heute.getMonth() - (5 - i), 1)
     return {
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
@@ -346,70 +348,135 @@ function Profil() {
         ))}
       </div>
 
-      {ticks.length > 0 && (
+            {ticks.length > 0 && (
         <>
-          {/* ── Schwierigkeitsverteilung ── */}
+          {/* ── Sends pro Jahr ── */}
           <div className="card" style={{ marginBottom: '2rem' }}>
-            <h2 style={{ marginBottom: '1.25rem' }}>📊 Schwierigkeitsverteilung</h2>
-            {/*
-              Reines CSS-Balkendiagramm – keine externe Library nötig.
-              Jeder Balken ist ein div dessen Höhe relativ zum Maximum berechnet wird.
-              align-items: flex-end sorgt dafür, dass die Balken unten ausgerichtet sind.
-            */}
-            <div style={{
-              display: 'flex', alignItems: 'flex-end', gap: '6px',
-              height: '120px', padding: '0 0.5rem'
-            }}>
-              {gradVerteilung.map(({ grad, anzahl }) => (
-                <div key={grad} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ fontSize: '0.65rem', color: '#aaa' }}>{anzahl}</span>
-                  <div style={{
-                    width: '100%',
-                    height: `${(anzahl / maxGrad) * 90}px`,
-                    background: 'linear-gradient(to top, #ff6b00, #ff9f50)',
-                    borderRadius: '4px 4px 0 0',
-                    minHeight: '4px',
-                    transition: 'height 0.3s'
-                  }} />
-                  <span style={{ fontSize: '0.65rem', color: '#aaa', transform: 'rotate(-45deg)', transformOrigin: 'center', whiteSpace: 'nowrap' }}>
-                    {grad}
-                  </span>
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>SENDS PRO MONAT</h2>
+              <span style={{ color: '#aaa', fontSize: '0.85rem' }}>{new Date().getFullYear()}</span>
             </div>
-          </div>
 
-          {/* ── Sends pro Monat ── */}
-          <div className="card" style={{ marginBottom: '2rem' }}>
-            <h2 style={{ marginBottom: '1.25rem' }}>📅 Sends pro Monat</h2>
-            {/*
-              Linien-ähnlicher Chart als CSS-Balken (horizontal).
-              Jede Zeile = ein Monat.
-            */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {monate.map(({ label, anzahl }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ width: '35px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{label}</span>
-                  <div style={{ flex: 1, background: '#1a1a1a', borderRadius: '4px', height: '20px', overflow: 'hidden' }}>
+            {/* Balken Chart */}
+            <div style={{ position: 'relative' }}>
+              {/* Y-Achse Linien */}
+              {[0, 25, 50, 75, 100].map(pct => (
+                <div key={pct} style={{
+                  position: 'absolute', left: 0, right: 0,
+                  bottom: `${pct}%`, height: '1px',
+                  background: 'rgba(255,255,255,0.05)'
+                }} />
+              ))}
+
+              <div style={{
+                display: 'flex', alignItems: 'flex-end', gap: '4px',
+                height: '140px', padding: '0 0.25rem'
+              }}>
+                {monate.map(({ label, anzahl }) => (
+                  <div key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                    {anzahl > 0 && (
+                      <span style={{ fontSize: '0.6rem', color: '#aaa' }}>{anzahl}</span>
+                    )}
                     <div style={{
-                      height: '100%',
-                      width: `${(anzahl / maxMonat) * 100}%`,
-                      background: 'linear-gradient(to right, #ff6b00, #ff9f50)',
-                      borderRadius: '4px',
-                      minWidth: anzahl > 0 ? '4px' : '0',
-                      transition: 'width 0.4s'
+                      width: '100%',
+                      height: `${maxMonat > 0 ? (anzahl / maxMonat) * 110 : 0}px`,
+                      background: anzahl > 0
+                        ? 'linear-gradient(to top, #4488ff, #44bbff)'
+                        : 'transparent',
+                      borderRadius: '3px 3px 0 0',
+                      minHeight: anzahl > 0 ? '4px' : '0',
+                      transition: 'height 0.4s',
+                      boxShadow: anzahl > 0 ? '0 0 8px rgba(68,136,255,0.4)' : 'none'
                     }} />
+                    <span style={{ fontSize: '0.6rem', color: '#555' }}>{label}</span>
                   </div>
-                  <span style={{ width: '20px', fontSize: '0.8rem', color: '#666' }}>{anzahl}</span>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              {/* Linie über Balken */}
+              <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '140px', pointerEvents: 'none' }}>
+                <polyline
+                  fill="none"
+                  stroke="#44ccff"
+                  strokeWidth="1.5"
+                  strokeDasharray="3,2"
+                  points={monate.map(({ anzahl }, i) => {
+                    const x = (i / (monate.length - 1)) * 100
+                    const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
+                    return `${x}%,${y}`
+                  }).join(' ')}
+                />
+                {monate.map(({ anzahl }, i) => {
+                  if (anzahl === 0) return null
+                  const x = (i / (monate.length - 1)) * 100
+                  const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
+                  return (
+                    <circle key={i} cx={`${x}%`} cy={y} r="3"
+                      fill="#44ccff" stroke="#111" strokeWidth="1.5" />
+                  )
+                })}
+              </svg>
             </div>
           </div>
-        </>
-      )}
 
+    {/* ── BY GRADES ── */}
+    <div className="card" style={{ marginBottom: '2rem' }}>
+      <h2 style={{ margin: '0 0 1.25rem', fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>BY GRADES</h2>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {[...gradVerteilung].reverse().map(({ grad, anzahl }) => (
+          <div key={grad} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span style={{ width: '40px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{grad}</span>
+            <div style={{ flex: 1, background: '#111', borderRadius: '3px', height: '18px', overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                height: '100%',
+                width: `${(anzahl / maxGrad) * 100}%`,
+                background: 'linear-gradient(to right, #4488ff, #44bbcc)',
+                borderRadius: '3px',
+                transition: 'width 0.5s',
+                boxShadow: '0 0 6px rgba(68,136,255,0.3)'
+              }} />
+            </div>
+            <span style={{ width: '24px', fontSize: '0.8rem', color: '#555', textAlign: 'right' }}>{anzahl}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </>
+)}
       {/* ── Send-Liste ── */}
-      <h2 style={{ marginBottom: '1rem' }}>✅ Meine Sends</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2 style={{ margin: 0 }}>✅ Meine Sends</h2>
+      </div>
+
+      {/* Filter */}
+      <div style={{
+        display: 'flex', gap: '0.75rem', alignItems: 'center',
+        overflowX: 'auto', paddingBottom: '0.5rem',
+        scrollbarWidth: 'none', marginBottom: '1rem'
+      }}>
+        <select value={filterGrad} onChange={e => setFilterGrad(e.target.value)} style={filterSelectStyle}>
+          <option value="">Alle Grade</option>
+          {GRADE.map(g => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <select value={filterDatum} onChange={e => setFilterDatum(e.target.value)} style={filterSelectStyle}>
+          <option value="">Alle Zeit</option>
+          <option value="7">Letzte 7 Tage</option>
+          <option value="30">Letzter Monat</option>
+          <option value="90">Letzte 3 Monate</option>
+          <option value="365">Letztes Jahr</option>
+        </select>
+        {(filterGrad || filterDatum) && (
+          <button
+            onClick={() => { setFilterGrad(''); setFilterDatum('') }}
+            style={{
+              background: 'transparent', border: '1px solid #444',
+              color: '#aaa', padding: '0.5rem 0.75rem',
+              borderRadius: '8px', cursor: 'pointer', flexShrink: 0
+            }}
+          >✕</button>
+        )}
+      </div>
       {ticks.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
           <p>Noch keine Routen gesendet.</p>
@@ -417,7 +484,17 @@ function Profil() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '3rem' }}>
-          {ticks.map(tick => {
+          {ticks.filter(tick => {
+            const route = routen[tick.route_id]
+            if (filterGrad && route?.setter_grade !== filterGrad) return false
+            if (filterDatum) {
+              const tage = parseInt(filterDatum)
+              const grenze = new Date()
+              grenze.setDate(grenze.getDate() - tage)
+              if (new Date(tick.ticked_at) < grenze) return false
+            }
+            return true
+          }).map(tick => {
             const route = routen[tick.route_id]
             const tickInfo = TICK_FARBEN[tick.tick_type] || TICK_FARBEN.done
             return (
@@ -473,6 +550,17 @@ function Profil() {
   background: '#1a1a1a', border: '1px solid #2a2a2a',
   borderRadius: '8px', color: 'white', fontSize: '0.95rem',
   boxSizing: 'border-box'
+}
+
+const filterSelectStyle = {
+  padding: '0.5rem 0.75rem',
+  borderRadius: '8px',
+  border: '1px solid #2a2a2a',
+  background: '#111',
+  color: 'white',
+  fontSize: '0.9rem',
+  cursor: 'pointer',
+  flexShrink: 0
 }
 
 export default Profil
