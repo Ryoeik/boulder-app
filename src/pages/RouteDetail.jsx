@@ -41,6 +41,8 @@ function RouteDetail() {
   const [panY, setPanY]   = useState(0)
   const letzterPinch = useRef(null)
   const letzterPan   = useRef(null)
+  const wandplanImgRef   = useRef(null)
+  const wandplanContRef  = useRef(null)
 
   useEffect(() => {
     async function datenLaden() {
@@ -109,15 +111,19 @@ function RouteDetail() {
     // Dann nach kurzem Delay auf die aktuelle Route zoomen
     if (route.marker_x !== null) {
       setTimeout(() => {
+        const img = wandplanImgRef.current
+        if (!img) return
         const zielZoom = 2.5
-        // Marker-Mitte berechnen (in Prozent 0-100)
-        const markerMitteX = route.marker_x + route.marker_width / 2   // z.B. 35
-        const markerMitteY = route.marker_y + route.marker_height / 2  // z.B. 60
-        // Verschiebung so dass Marker-Mitte im Zentrum landet
-        // Bei zoom=2.5 ist das Bild 2.5x größer, daher müssen wir
-        // die Abweichung von der Mitte (50%) mit zoom skalieren
-        const panXNeu = (50 - markerMitteX) / 100 * window.innerWidth * 0.6
-        const panYNeu = (50 - markerMitteY) / 100 * window.innerHeight * 0.5
+        // Marker-Mitte in Prozent (0-100)
+        const markerMitteX = route.marker_x + route.marker_width / 2
+        const markerMitteY = route.marker_y + route.marker_height / 2
+        // Tatsächliche Bildgröße für korrekte Pan-Berechnung nutzen
+        const bildBreite = img.clientWidth
+        const bildHoehe  = img.clientHeight
+        // Pan so setzen dass Marker-Mitte exakt im Zentrum landet
+        // Formel: pan = (0.5 - markerMitte/100) * bildGrösse * zoom
+        const panXNeu = (0.5 - markerMitteX / 100) * bildBreite * zielZoom
+        const panYNeu = (0.5 - markerMitteY / 100) * bildHoehe  * zielZoom
         setZoom(zielZoom)
         setPanX(panXNeu)
         setPanY(panYNeu)
@@ -132,9 +138,28 @@ function RouteDetail() {
     return Math.sqrt(dx * dx + dy * dy)
   }
 
+  function panGrenzen(neuX, neuY, aktZoom) {
+    const img = wandplanImgRef.current
+    if (!img) return { x: neuX, y: neuY }
+    const maxPanX = Math.max(0, (img.clientWidth  * aktZoom - img.clientWidth)  / 2)
+    const maxPanY = Math.max(0, (img.clientHeight * aktZoom - img.clientHeight) / 2)
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, neuX)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, neuY))
+    }
+  }
+
+  function pinchMitte(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    }
+  }
+
   function viewerTouchStart(e) {
     if (e.touches.length === 2) {
-      letzterPinch.current = { abstand: abstand(e.touches), zoom }
+      const mitte = pinchMitte(e.touches)
+      letzterPinch.current = { abstand: abstand(e.touches), zoom, panX, panY, mitteX: mitte.x, mitteY: mitte.y }
       letzterPan.current = null
     } else if (e.touches.length === 1 && zoom > 1) {
       letzterPan.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY }
@@ -145,11 +170,31 @@ function RouteDetail() {
     e.preventDefault()
     if (e.touches.length === 2 && letzterPinch.current) {
       const neuerZoom = Math.max(1, Math.min(6, letzterPinch.current.zoom * (abstand(e.touches) / letzterPinch.current.abstand)))
-      setZoom(neuerZoom)
-      if (neuerZoom === 1) { setPanX(0); setPanY(0) }
+      if (neuerZoom === 1) {
+        setZoom(1); setPanX(0); setPanY(0)
+      } else {
+        // Zoom um den Pinch-Mittelpunkt
+        const cont = wandplanContRef.current
+        if (cont) {
+          const rect = cont.getBoundingClientRect()
+          const mitte = pinchMitte(e.touches)
+          const contMitteX = rect.left + rect.width  / 2
+          const contMitteY = rect.top  + rect.height / 2
+          const offsetX = mitte.x - contMitteX
+          const offsetY = mitte.y - contMitteY
+          const zoomFaktor = neuerZoom / letzterPinch.current.zoom
+          const neuPanX = offsetX - (offsetX - letzterPinch.current.panX) * zoomFaktor
+          const neuPanY = offsetY - (offsetY - letzterPinch.current.panY) * zoomFaktor
+          const { x, y } = panGrenzen(neuPanX, neuPanY, neuerZoom)
+          setPanX(x); setPanY(y)
+        }
+        setZoom(neuerZoom)
+      }
     } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
-      setPanX(e.touches[0].clientX - letzterPan.current.x)
-      setPanY(e.touches[0].clientY - letzterPan.current.y)
+      const neuX = e.touches[0].clientX - letzterPan.current.x
+      const neuY = e.touches[0].clientY - letzterPan.current.y
+      const { x, y } = panGrenzen(neuX, neuY, zoom)
+      setPanX(x); setPanY(y)
     }
   }
 
@@ -472,6 +517,7 @@ function RouteDetail() {
 
           {/* Bild mit Zoom */}
           <div
+            ref={wandplanContRef}
             onTouchStart={viewerTouchStart}
             onTouchMove={viewerTouchMove}
             onTouchEnd={viewerTouchEnd}
@@ -487,6 +533,7 @@ function RouteDetail() {
               transition: letzterPinch.current ? 'none' : 'transform 0.35s ease-out'
             }}>
               <img
+                ref={wandplanImgRef}
                 src={sektion.image_url} alt={sektion.name}
                 style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain', display: 'block', borderRadius: '8px' }}
                 draggable={false}
