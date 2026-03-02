@@ -86,7 +86,7 @@ function App() {
         </a>
         <span style={{ color: '#333', margin: '0 0.75rem' }}>·</span>
         <span style={{ color: '#555', fontSize: '0.85rem' }}>
-          Toter Boulder – Ein privates Community-Projekt
+          Tote Boulder – Ein privates Community-Projekt
         </span>
       </footer>
     </BrowserRouter>
