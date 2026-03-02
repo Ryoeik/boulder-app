@@ -14,8 +14,12 @@ function WandplanEditor() {
   const [speichernLaden, setSpeichernLaden] = useState(false)
   const [gespeichert, setGespeichert] = useState(false)
   const [fortschritt, setFortschritt] = useState('')
+  const [zoom, setZoom] = useState(1)
+  const [panX, setPanX] = useState(0)
+  const [panY, setPanY] = useState(0)
   const bildRef = useRef(null)
   const containerRef = useRef(null)
+  const letzterPinch = useRef(null)
   const letzterPan = useRef(null)
 
   useEffect(() => {
@@ -43,7 +47,6 @@ function WandplanEditor() {
     datenLaden()
   }, [sektionId])
 
-  // ── Koordinaten berechnen ────────────────────────────────────────────────────
   function koordinatenAusProzent(clientX, clientY) {
     const rect = containerRef.current.getBoundingClientRect()
     const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100))
@@ -51,7 +54,6 @@ function WandplanEditor() {
     return { x, y }
   }
 
-  // ── Maus Events ──────────────────────────────────────────────────────────────
   function mausStart(e) {
     if (!gewaehlteRoute) return
     e.preventDefault()
@@ -72,7 +74,6 @@ function WandplanEditor() {
 
   function mausEnde() { markerFertigstellen() }
 
-  // ── Touch Events ─────────────────────────────────────────────────────────────
   function touchStart(e) {
     if (!gewaehlteRoute || e.touches.length !== 1) return
     e.preventDefault()
@@ -94,6 +95,49 @@ function WandplanEditor() {
   }
 
   function touchEnde() { markerFertigstellen() }
+
+  function pinchAbstand(touches) {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  function editorTouchStart(e) {
+    if (gewaehlteRoute && e.touches.length === 1) {
+      touchStart(e)
+    } else if (e.touches.length === 2) {
+      letzterPinch.current = { abstand: pinchAbstand(e.touches), zoom }
+      letzterPan.current = null
+    } else if (e.touches.length === 1 && zoom > 1) {
+      letzterPan.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY }
+    }
+  }
+
+  function editorTouchMove(e) {
+    if (gewaehlteRoute && e.touches.length === 1) {
+      touchBewegen(e)
+      return
+    }
+    e.preventDefault()
+    if (e.touches.length === 2 && letzterPinch.current) {
+      const neuerZoom = Math.max(1, Math.min(5, letzterPinch.current.zoom * (pinchAbstand(e.touches) / letzterPinch.current.abstand)))
+      setZoom(neuerZoom)
+      if (neuerZoom === 1) { setPanX(0); setPanY(0) }
+    } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
+      setPanX(e.touches[0].clientX - letzterPan.current.x)
+      setPanY(e.touches[0].clientY - letzterPan.current.y)
+    }
+  }
+
+  function editorTouchEnd(e) {
+    if (gewaehlteRoute) { touchEnde(); return }
+    if (e.touches.length < 2) letzterPinch.current = null
+    if (e.touches.length < 1) letzterPan.current = null
+  }
+
+  function zoomZuruecksetzen() {
+    setZoom(1); setPanX(0); setPanY(0)
+  }
 
   function markerFertigstellen() {
     if (!zieheMarker || !gewaehlteRoute) return
@@ -118,86 +162,52 @@ function WandplanEditor() {
     setMarker(prev => prev.filter(m => m.routeId !== routeId))
   }
 
-  // ── Bildausschnitt via Canvas croppen ────────────────────────────────────────
-  // Das Wandbild wird in ein unsichtbares Canvas geladen, dann wird der
-  // Bereich des Markers ausgeschnitten und als Blob zurückgegeben.
   async function bildAusschnittErstellen(m) {
     return new Promise((resolve) => {
       const img = new Image()
-      img.crossOrigin = 'anonymous'  // wichtig für CORS bei Supabase Storage URLs
-
+      img.crossOrigin = 'anonymous'
       img.onload = () => {
-        // Zielgröße: mindestens 400px breit damit das Bild scharf bleibt
         const zielBreite = Math.max(400, Math.round(img.naturalWidth * (m.width / 100)))
         const zielHoehe  = Math.round(zielBreite * (m.height / m.width))
-
         const canvas = document.createElement('canvas')
         canvas.width  = zielBreite
         canvas.height = zielHoehe
-
         const ctx = canvas.getContext('2d')
-
-        // Quell-Rechteck in Pixel (basierend auf Prozent-Koordinaten)
         const quellX = (m.x / 100) * img.naturalWidth
         const quellY = (m.y / 100) * img.naturalHeight
         const quellB = (m.width  / 100) * img.naturalWidth
         const quellH = (m.height / 100) * img.naturalHeight
-
-        ctx.drawImage(
-          img,
-          quellX, quellY, quellB, quellH,   // Quelle: Ausschnitt
-          0, 0, zielBreite, zielHoehe         // Ziel: ganzes Canvas
-        )
-
+        ctx.drawImage(img, quellX, quellY, quellB, quellH, 0, 0, zielBreite, zielHoehe)
         canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.85)
       }
-
-      img.onerror = () => resolve(null)  // Fehler: kein Bild, Route trotzdem speichern
+      img.onerror = () => resolve(null)
       img.src = aktivesRild
     })
   }
 
-  // ── Speichern: Marker + Bildausschnitte ──────────────────────────────────────
   async function speichern() {
     setSpeichernLaden(true)
     setFortschritt('Speichere Marker...')
-
     for (const m of marker) {
       setFortschritt(`📸 Erstelle Bild für "${m.name}"...`)
-
-      // 1. Bildausschnitt aus dem Wandbild croppen
       const blob = await bildAusschnittErstellen(m)
-
       let imageUrl = null
-
       if (blob) {
-        // 2. Cropped-Bild in Supabase Storage hochladen
         const dateiName = `${m.routeId}-marker.jpg`
-
-        // Altes Bild zuerst löschen (upsert funktioniert bei Storage nicht direkt)
         await supabase.storage.from('route-images').remove([dateiName])
-
         const { error: uploadError } = await supabase.storage
-          .from('route-images')
-          .upload(dateiName, blob, { contentType: 'image/jpeg' })
-
+          .from('route-images').upload(dateiName, blob, { contentType: 'image/jpeg' })
         if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from('route-images').getPublicUrl(dateiName)
+          const { data: urlData } = supabase.storage.from('route-images').getPublicUrl(dateiName)
           imageUrl = urlData.publicUrl
         }
       }
-
-      // 3. Marker-Koordinaten + Bild-URL in der Route speichern
       await supabase.from('routes').update({
         marker_x: m.x, marker_y: m.y,
         marker_width: m.width, marker_height: m.height,
-        // image_url nur überschreiben wenn wir ein neues Bild haben
         ...(imageUrl ? { image_url: imageUrl } : {})
       }).eq('id', m.routeId)
     }
-
-    // Gelöschte Marker zurücksetzen (Koordinaten + Bild entfernen)
     const markierteRouteIds = marker.map(m => m.routeId)
     const nichtMarkierteRouten = routen.filter(r => !markierteRouteIds.includes(r.id))
     for (const r of nichtMarkierteRouten) {
@@ -205,12 +215,10 @@ function WandplanEditor() {
       await supabase.from('routes').update({
         marker_x: null, marker_y: null,
         marker_width: null, marker_height: null,
-        image_url: null  // Bild auch entfernen wenn Marker gelöscht
+        image_url: null
       }).eq('id', r.id)
-      // Datei aus Storage löschen
       await supabase.storage.from('route-images').remove([`${r.id}-marker.jpg`])
     }
-
     setFortschritt('')
     setGespeichert(true)
     setTimeout(() => setGespeichert(false), 2000)
@@ -232,7 +240,6 @@ function WandplanEditor() {
         </button>
       </div>
 
-      {/* Fortschritt beim Speichern */}
       {fortschritt && (
         <div style={{
           background: 'rgba(255,107,0,0.1)', border: '1px solid rgba(255,107,0,0.3)',
@@ -243,7 +250,6 @@ function WandplanEditor() {
         </div>
       )}
 
-      {/* Anleitung */}
       <div style={{
         background: 'rgba(255,107,0,0.08)', border: '1px solid rgba(255,107,0,0.2)',
         borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem',
@@ -251,7 +257,7 @@ function WandplanEditor() {
       }}>
         📱 <strong style={{ color: '#ff6b00' }}>Mobile:</strong> Route antippen → mit Finger Rechteck ziehen<br />
         🖥️ <strong style={{ color: '#ff6b00' }}>Desktop:</strong> Route auswählen → mit Maus Rechteck ziehen<br />
-        📸 <strong style={{ color: '#ff6b00' }}>Auto-Bild:</strong> Der markierte Bereich wird automatisch als Routenbild gespeichert
+        🔍 <strong style={{ color: '#ff6b00' }}>Zoom:</strong> Pinch zum Zoomen oder + / − Buttons
       </div>
 
       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
@@ -259,68 +265,87 @@ function WandplanEditor() {
         {/* Bild mit Markern */}
         <div style={{ flex: 2, minWidth: '300px' }}>
           {aktivesRild ? (
-            <div
-              ref={containerRef}
-              style={{
-                position: 'relative',
-                cursor: gewaehlteRoute ? 'crosshair' : 'default',
-                userSelect: 'none',
-                touchAction: gewaehlteRoute ? 'none' : 'auto'
-              }}
-              onMouseDown={mausStart}
-              onMouseMove={mausBewegen}
-              onMouseUp={mausEnde}
-              onMouseLeave={mausEnde}
-              onTouchStart={touchStart}
-              onTouchMove={touchBewegen}
-              onTouchEnd={touchEnde}
-              onTouchCancel={touchEnde}
-            >
-              <img
-                ref={bildRef}
-                src={aktivesRild}
-                alt="Wandplan"
-                style={{ width: '100%', display: 'block', borderRadius: '12px' }}
-                draggable={false}
-              />
+            <>
+              {/* Zoom Controls */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                <button onClick={() => setZoom(z => Math.min(5, z + 0.5))} style={zoomBtnStyle}>+</button>
+                <button onClick={() => setZoom(z => Math.max(1, z - 0.5))} style={zoomBtnStyle}>−</button>
+                {zoom > 1 && <button onClick={zoomZuruecksetzen} style={zoomBtnStyle}>↩ Reset</button>}
+                <span style={{ fontSize: '0.8rem', color: '#555' }}>{zoom.toFixed(1)}×</span>
+              </div>
 
-              {marker.map(m => (
-                <div key={m.routeId} style={{
-                  position: 'absolute',
-                  left: `${m.x}%`, top: `${m.y}%`,
-                  width: `${m.width}%`, height: `${m.height}%`,
-                  border: `3px solid ${m.color}`, borderRadius: '6px',
-                  background: `${m.color}22`, boxSizing: 'border-box', pointerEvents: 'none'
-                }}>
-                  <span style={{
-                    position: 'absolute', top: '-22px', left: '0',
-                    background: m.color, color: 'white',
-                    fontSize: '0.7rem', padding: '1px 6px',
-                    borderRadius: '4px', whiteSpace: 'nowrap'
-                  }}>{m.name || 'Route'}</span>
+              {/* Bild Container mit Overflow hidden */}
+              <div style={{ overflow: 'hidden', borderRadius: '12px' }}>
+                <div
+                  ref={containerRef}
+                  style={{
+                    position: 'relative',
+                    cursor: gewaehlteRoute ? 'crosshair' : zoom > 1 ? 'grab' : 'default',
+                    userSelect: 'none',
+                    touchAction: 'none',
+                    transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
+                    transformOrigin: 'top left',
+                    transition: letzterPinch.current ? 'none' : 'transform 0.1s'
+                  }}
+                  onMouseDown={e => {
+                    if (!gewaehlteRoute && zoom > 1) {
+                      letzterPan.current = { x: e.clientX - panX, y: e.clientY - panY }
+                    } else {
+                      mausStart(e)
+                    }
+                  }}
+                  onMouseMove={e => {
+                    if (letzterPan.current && !gewaehlteRoute) {
+                      setPanX(e.clientX - letzterPan.current.x)
+                      setPanY(e.clientY - letzterPan.current.y)
+                    } else {
+                      mausBewegen(e)
+                    }
+                  }}
+                  onMouseUp={() => { letzterPan.current = null; mausEnde() }}
+                  onMouseLeave={() => { letzterPan.current = null; mausEnde() }}
+                  onTouchStart={editorTouchStart}
+                  onTouchMove={editorTouchMove}
+                  onTouchEnd={editorTouchEnd}
+                  onTouchCancel={editorTouchEnd}
+                >
+                  <img
+                    ref={bildRef}
+                    src={aktivesRild}
+                    alt="Wandplan"
+                    style={{ width: '100%', display: 'block', borderRadius: '12px' }}
+                    draggable={false}
+                  />
+
+                  {marker.map(m => (
+                    <div key={m.routeId} style={{
+                      position: 'absolute',
+                      left: `${m.x}%`, top: `${m.y}%`,
+                      width: `${m.width}%`, height: `${m.height}%`,
+                      border: `3px solid ${m.color}`, borderRadius: '6px',
+                      background: `${m.color}22`, boxSizing: 'border-box', pointerEvents: 'none'
+                    }}>
+                      <span style={{
+                        position: 'absolute', top: '-22px', left: '0',
+                        background: m.color, color: 'white',
+                        fontSize: '0.7rem', padding: '1px 6px',
+                        borderRadius: '4px', whiteSpace: 'nowrap'
+                      }}>{m.name || 'Route'}</span>
+                    </div>
+                  ))}
+
+                  {zieheMarker && (
+                    <div style={{
+                      position: 'absolute',
+                      left: `${zieheMarker.x}%`, top: `${zieheMarker.y}%`,
+                      width: `${zieheMarker.width}%`, height: `${zieheMarker.height}%`,
+                      border: '3px dashed #ff6b00', borderRadius: '6px',
+                      background: 'rgba(255,107,0,0.15)', boxSizing: 'border-box', pointerEvents: 'none'
+                    }} />
+                  )}
                 </div>
-              ))}
-
-              {zieheMarker && (
-                <div style={{
-                  position: 'absolute',
-                  left: `${zieheMarker.x}%`, top: `${zieheMarker.y}%`,
-                  width: `${zieheMarker.width}%`, height: `${zieheMarker.height}%`,
-                  border: '3px dashed #ff6b00', borderRadius: '6px',
-                  background: 'rgba(255,107,0,0.15)', boxSizing: 'border-box', pointerEvents: 'none'
-                }} />
-              )}
-
-              {gewaehlteRoute && !zieheMarker && (
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  pointerEvents: 'none'
-                }}>
-                  
-                </div>
-              )}
-            </div>
+              </div>
+            </>
           ) : (
             <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
               <p>Kein Wandbild vorhanden.</p>
@@ -337,7 +362,6 @@ function WandplanEditor() {
           <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: '1rem' }}>
             Antippen → Rechteck ziehen
           </p>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {routen.map(route => {
               const hatMarker = marker.some(m => m.routeId === route.id)
@@ -353,7 +377,6 @@ function WandplanEditor() {
                   }}
                   onClick={() => setGewaehlteRoute(istAktiv ? null : route.id)}
                 >
-                  {/* Vorschau des gespeicherten Ausschnitts falls vorhanden */}
                   {route.image_url ? (
                     <img src={route.image_url} alt={route.name}
                       style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
@@ -370,7 +393,6 @@ function WandplanEditor() {
               )
             })}
           </div>
-
           {routen.length === 0 && (
             <p style={{ color: '#666', fontSize: '0.9rem' }}>Noch keine Routen in dieser Sektion.</p>
           )}
@@ -378,6 +400,12 @@ function WandplanEditor() {
       </div>
     </div>
   )
+}
+
+const zoomBtnStyle = {
+  background: '#1a1a1a', border: '1px solid #2a2a2a',
+  color: 'white', borderRadius: '6px', padding: '0.3rem 0.7rem',
+  cursor: 'pointer', fontSize: '0.9rem'
 }
 
 export default WandplanEditor
