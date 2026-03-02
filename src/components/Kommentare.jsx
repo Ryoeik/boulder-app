@@ -49,7 +49,7 @@ function KommentarElement({ k, profil, nutzer, darfAllesLoeschen, tiefe, onAntwo
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Link
-            to={gymId ? `/halle/${gymId}/nutzer/${k.user_id}` : `/nutzer/${k.user_id}`}
+            to={`/nutzer/${k.user_id}`}
             style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', textDecoration: 'none' }}
           >
             <div style={{
@@ -236,16 +236,25 @@ function Kommentare({ routeId, gymId }) {
   }
 
   async function kommentarLoeschen(id) {
-    await supabase.from('comments').delete().eq('id', id)
-    setAlleKommentare(prev => {
-      const zuLoeschen = new Set()
-      function sammeln(kid) {
-        zuLoeschen.add(kid)
-        prev.filter(k => k.parent_id === kid).forEach(k => sammeln(k.id))
-      }
-      sammeln(id)
-      return prev.filter(k => !zuLoeschen.has(k.id))
-    })
+    // Alle zu löschenden IDs sammeln (inkl. Kinder)
+    const zuLoeschen = new Set()
+    function sammeln(kid) {
+      zuLoeschen.add(kid)
+      alleKommentare.filter(k => k.parent_id === kid).forEach(k => sammeln(k.id))
+    }
+    sammeln(id)
+
+    // Beta-Videos aus Storage löschen
+    const videoKommentare = alleKommentare.filter(k => zuLoeschen.has(k.id) && k.video_url)
+    for (const k of videoKommentare) {
+      const dateiName = k.video_url.split('/').pop()
+      await supabase.storage.from('beta-videos').remove([dateiName])
+    }
+
+    // DB-Einträge löschen
+    await supabase.from('comments').delete().in('id', [...zuLoeschen])
+
+    setAlleKommentare(prev => prev.filter(k => !zuLoeschen.has(k.id)))
   }
 
   if (laden) return <p style={{ color: '#aaa' }}>Lädt Kommentare...</p>
