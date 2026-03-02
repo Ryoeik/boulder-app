@@ -48,16 +48,13 @@ function Startseite() {
           .from('ticks')
           .select('*')
           .in('route_id', routenIds)
-          .neq('user_id', user.id)
           .order('ticked_at', { ascending: false })
           .limit(50)
 
-        // Beta Videos (Kommentare mit video_url)
         const { data: videoData } = await supabase
           .from('comments')
           .select('*')
           .in('route_id', routenIds)
-          .neq('user_id', user.id)
           .not('video_url', 'is', null)
           .order('created_at', { ascending: false })
           .limit(20)
