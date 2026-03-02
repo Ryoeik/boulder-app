@@ -129,36 +129,40 @@ function HalleDetail() {
       <p>📍 {halle.city}</p>
 
       {/* Buttons */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '1rem' }}>
+      {/* Buttons */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+        {nutzerId && (
+          <Link to={`/halle/${id}/nutzer/${nutzerId}`} style={iconBtnStyle}>
+            👤
+          </Link>
+        )}
+        <Link to={`/halle/${id}/ranking`} style={iconBtnStyle}>
+          🏆
+        </Link>
+        {istAdmin && (
+          <Link to={`/halle/${id}/sektionen`} style={iconBtnStyle}>
+            🗺️
+          </Link>
+        )}
+        {istAdmin && (
+          <Link to={`/halle/${id}/einstellungen`} style={iconBtnStyle}>
+            ⚙️
+          </Link>
+        )}
         {!istAdmin && (
           mitgliedschaft ? (
-            <button onClick={halleVerlassen} disabled={beitretenLaden}
-              className="btn btn-outline" style={{ borderColor: '#ff4444', color: '#ff4444' }}>
-              {beitretenLaden ? '...' : 'Halle verlassen'}
+            <button onClick={halleVerlassen} disabled={beitretenLaden} style={{
+              ...iconBtnStyle, borderColor: '#ff4444', color: '#ff4444', background: 'rgba(255,68,68,0.05)'
+            }}>
+              {beitretenLaden ? '...' : '🚪'}
             </button>
           ) : (
-            <button onClick={halleBetreten} disabled={beitretenLaden} className="btn">
+            <button onClick={halleBetreten} disabled={beitretenLaden} style={{
+              ...iconBtnStyle, borderColor: '#ff6b00', color: '#ff6b00', background: 'rgba(255,107,0,0.1)'
+            }}>
               {beitretenLaden ? '...' : '🤝 Beitreten'}
             </button>
           )
-        )}
-        {nutzerId && (
-          <Link to={`/halle/${id}/nutzer/${nutzerId}`} className="btn btn-outline">
-            👤 Mein Hallenprofil
-          </Link>
-        )}
-        {istAdmin && (
-          <Link to={`/halle/${id}/sektionen`} className="btn btn-outline">
-            Sektionen & Routen verwalten
-          </Link>
-        )}
-        <Link to={`/halle/${id}/ranking`} className="btn btn-outline">
-          🏆 Ranking
-        </Link>
-        {istAdmin && (
-          <Link to={`/halle/${id}/einstellungen`} className="btn btn-outline">
-            ⚙️ Einstellungen
-          </Link>
         )}
       </div>
 
@@ -175,10 +179,10 @@ function HalleDetail() {
               <div key={sektion.id}
                 onClick={() => setFilterSektion(sektion.name)}
                 style={{
-                  flexShrink: 0, width: '200px', cursor: 'pointer',
+                  flexShrink: 0, width: '180px', cursor: 'pointer',
                   borderRadius: '12px', overflow: 'hidden',
                   border: `2px solid ${filterSektion === sektion.name ? '#ff6b00' : 'transparent'}`,
-                  transition: 'border-color 0.2s'
+                  transition: 'border-color 0.2s', position: 'relative'
                 }}
               >
                 <img src={sektion.image_url} alt={sektion.name}
@@ -197,11 +201,12 @@ function HalleDetail() {
                   style={{ width: '100%', height: '120px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
                 />
                 <div style={{
-                  padding: '0.5rem 0.75rem',
-                  background: filterSektion === sektion.name ? 'rgba(255,107,0,0.15)' : '#1a1a1a'
+                  padding: '0.4rem 0.75rem',
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+                  position: 'absolute', bottom: 0, left: 0, right: 0
                 }}>
                   <strong style={{
-                    fontSize: '0.9rem',
+                    fontSize: '0.85rem',
                     color: filterSektion === sektion.name ? '#ff6b00' : 'white'
                   }}>{sektion.name}</strong>
                 </div>
@@ -250,8 +255,8 @@ function HalleDetail() {
       </div>
 
       {/* Routen */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1.5rem 0 1rem' }}>
-        <h2 style={{ margin: 0 }}>Routen ({gefilterteRouten.length})</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1.5rem 0 0.75rem' }}>
+        <span style={{ color: '#555', fontSize: '0.85rem' }}>{gefilterteRouten.length} Routen</span>
       </div>
 
       {gefilterteRouten.length === 0 ? (
@@ -268,22 +273,24 @@ function HalleDetail() {
           {gefilterteRouten.map(route => {
             const sektion = sektionen.find(s => s.id === route.section_id)
             return (
-              <div
-                key={route.id}
-                className="card"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', padding: '0.75rem' }}
+              <div key={route.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  cursor: 'pointer', padding: '0.6rem 0.75rem',
+                  background: '#111', borderRadius: '12px',
+                  border: '1px solid #1a1a1a'
+                }}
                 onClick={() => navigate(`/route/${route.id}`)}
               >
-                {/* Routenbild oder Farbbalken */}
                 {route.image_url ? (
                   <img src={route.image_url} alt={route.name} style={{
-                    width: '60px', height: '60px', objectFit: 'cover',
+                    width: '52px', height: '52px', objectFit: 'cover',
                     borderRadius: '8px', flexShrink: 0
                   }} />
                 ) : (
                   <div style={{
-                    width: '8px', alignSelf: 'stretch', borderRadius: '4px',
-                    backgroundColor: route.color, flexShrink: 0
+                    width: '6px', alignSelf: 'stretch', borderRadius: '3px',
+                    backgroundColor: route.color, flexShrink: 0, minHeight: '40px'
                   }} />
                 )}
 
@@ -591,6 +598,14 @@ const selectStyle = {
   fontSize: '0.9rem',
   cursor: 'pointer',
   flexShrink: 0
+}
+
+const iconBtnStyle = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: '42px', height: '42px', borderRadius: '10px',
+  border: '1px solid #2a2a2a', background: '#1a1a1a',
+  color: 'white', textDecoration: 'none', fontSize: '1.2rem',
+  cursor: 'pointer', flexShrink: 0
 }
 
 export default HalleDetail
