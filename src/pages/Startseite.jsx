@@ -10,10 +10,14 @@ function Startseite() {
 
   useEffect(() => {
     async function datenLaden() {
-      const { data: { session } } = await supabase.auth.getSession()
+      // Warte kurz damit Mobile die Session laden kann
+      let session = (await supabase.auth.getSession()).data.session
+      if (!session) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        session = (await supabase.auth.getSession()).data.session
+      }
       const user = session?.user
       setNutzer(user)
-
       if (!user) {
         setLaden(false)
         return
