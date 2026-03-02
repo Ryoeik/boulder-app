@@ -317,11 +317,7 @@ function WandplanEditor() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   pointerEvents: 'none'
                 }}>
-                  <div style={{
-                    background: 'rgba(0,0,0,0.7)', borderRadius: '12px',
-                    padding: '0.75rem 1.25rem', color: 'white', fontSize: '0.9rem',
-                    border: '2px dashed rgba(255,107,0,0.5)'
-                  }}>✋ Rechteck ziehen</div>
+                  
                 </div>
               )}
             </div>

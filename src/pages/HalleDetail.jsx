@@ -15,6 +15,8 @@ function HalleDetail() {
   const [nutzerRolle, setNutzerRolle] = useState(null)
   const [nutzerId, setNutzerId] = useState(null)
   const [vollbildBild, setVollbildBild] = useState(null)
+  const [vollbildSektion, setVollbildSektion] = useState(null)
+  const [vollbildMarker, setVollbildMarker] = useState([])
   const [mitgliedschaft, setMitgliedschaft] = useState(null)
   const [beitretenLaden, setBeitretenLaden] = useState(false)
 
@@ -177,7 +179,18 @@ function HalleDetail() {
                 }}
               >
                 <img src={sektion.image_url} alt={sektion.name}
-                  onClick={e => { e.stopPropagation(); setVollbildBild(sektion.image_url) }}
+                  onClick={async e => {
+                    e.stopPropagation()
+                    setVollbildBild(sektion.image_url)
+                    setVollbildSektion(sektion)
+                    const { data } = await supabase
+                      .from('routes')
+                      .select('id, name, color, setter_grade, marker_x, marker_y, marker_width, marker_height')
+                      .eq('section_id', sektion.id)
+                      .eq('is_active', true)
+                      .not('marker_x', 'is', null)
+                    setVollbildMarker(data || [])
+                  }}
                   style={{ width: '100%', height: '120px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
                 />
                 <div style={{
@@ -305,7 +318,7 @@ function HalleDetail() {
 
       {/* Vollbild Viewer */}
       {vollbildBild && (
-        <div onClick={() => setVollbildBild(null)} style={{
+        <div onClick={() => { setVollbildBild(null); setVollbildMarker([]) }} style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.95)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -317,10 +330,38 @@ function HalleDetail() {
             color: 'white', borderRadius: '50%', width: '40px', height: '40px',
             cursor: 'pointer', fontSize: '1.2rem'
           }}>✕</button>
-          <img src={vollbildBild} alt="Vollbild"
-            onClick={e => e.stopPropagation()}
-            style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
-          />
+          <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '90vh' }}>
+            <img src={vollbildBild} alt="Vollbild"
+              onClick={e => e.stopPropagation()}
+              style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }}
+            />
+            {vollbildMarker.map(r => (
+              <div
+                key={r.id}
+                onClick={e => { e.stopPropagation(); setVollbildBild(null); navigate(`/route/${r.id}`) }}
+                style={{
+                  position: 'absolute',
+                  left: `${r.marker_x}%`, top: `${r.marker_y}%`,
+                  width: `${r.marker_width}%`, height: `${r.marker_height}%`,
+                  border: `2px solid ${r.color}`,
+                  borderRadius: '6px',
+                  background: `${r.color}22`,
+                  boxSizing: 'border-box',
+                  cursor: 'pointer'
+                }}
+              >
+                <div style={{
+                  position: 'absolute', bottom: '100%', left: 0, marginBottom: '2px',
+                  background: r.color, color: 'white',
+                  fontSize: '0.7rem', fontWeight: 'bold',
+                  padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
+                  pointerEvents: 'none'
+                }}>
+                  {r.setter_grade}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
