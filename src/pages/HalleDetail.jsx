@@ -419,6 +419,7 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   const letzterPinch = useRef(null)
   const letzterPan = useRef(null)
   const touchStart = useRef(null)
+  const containerRef = useRef(null)
 
   function pinchAbstand(touches) {
     const dx = touches[0].clientX - touches[1].clientX
@@ -426,14 +427,32 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
     return Math.sqrt(dx * dx + dy * dy)
   }
 
+  function pinchMitte(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    }
+  }
+
   function onTouchStart(e) {
+    e.preventDefault()
     if (e.touches.length === 2) {
-      letzterPinch.current = { abstand: pinchAbstand(e.touches), zoom }
+      const mitte = pinchMitte(e.touches)
+      letzterPinch.current = {
+        abstand: pinchAbstand(e.touches),
+        zoom,
+        mitteX: mitte.x,
+        mitteY: mitte.y,
+        panX,
+        panY
+      }
       letzterPan.current = null
       touchStart.current = null
     } else if (e.touches.length === 1) {
       touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() }
-      if (zoom > 1) letzterPan.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY }
+      if (zoom > 1) {
+        letzterPan.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY }
+      }
     }
   }
 
@@ -441,8 +460,24 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
     e.preventDefault()
     if (e.touches.length === 2 && letzterPinch.current) {
       const neuerZoom = Math.max(1, Math.min(5, letzterPinch.current.zoom * (pinchAbstand(e.touches) / letzterPinch.current.abstand)))
+      
+      // Zoom um den Pinch-Mittelpunkt
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (rect) {
+        const mitte = pinchMitte(e.touches)
+        const bildMitteX = rect.left + rect.width / 2
+        const bildMitteY = rect.top + rect.height / 2
+        const offsetX = mitte.x - bildMitteX
+        const offsetY = mitte.y - bildMitteY
+        const zoomFaktor = neuerZoom / letzterPinch.current.zoom
+        const neuesPanX = offsetX - (offsetX - letzterPinch.current.panX) * zoomFaktor
+        const neuesPanY = offsetY - (offsetY - letzterPinch.current.panY) * zoomFaktor
+        setPanX(neuerZoom === 1 ? 0 : neuesPanX)
+        setPanY(neuerZoom === 1 ? 0 : neuesPanY)
+      }
+      
       setZoom(neuerZoom)
-      if (neuerZoom === 1) { setPanX(0); setPanY(0) }
+      touchStart.current = null
     } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
       setPanX(e.touches[0].clientX - letzterPan.current.x)
       setPanY(e.touches[0].clientY - letzterPan.current.y)
@@ -473,7 +508,13 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+    <div
+      ref={containerRef}
+      style={{
+        width: '100vw', height: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden', touchAction: 'none'
+      }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -483,11 +524,17 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
         position: 'relative',
         transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
         transformOrigin: 'center',
-        transition: letzterPinch.current ? 'none' : 'transform 0.1s',
-        cursor: zoom > 1 ? 'grab' : 'default'
+        transition: letzterPinch.current ? 'none' : 'transform 0.05s',
+        cursor: zoom > 1 ? 'grab' : 'default',
+        userSelect: 'none'
       }}>
         <img src={src} alt="Vollbild"
-          style={{ maxWidth: '95vw', maxHeight: '85vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: '8px', display: 'block', userSelect: 'none' }}
+          style={{
+            maxWidth: '95vw', maxHeight: '85vh',
+            width: 'auto', height: 'auto',
+            objectFit: 'contain', borderRadius: '8px',
+            display: 'block', userSelect: 'none', pointerEvents: 'none'
+          }}
           draggable={false}
         />
         {marker.map(r => (
