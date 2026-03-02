@@ -1,78 +1,81 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { supabase } from './supabase' // Importiere deinen Client
+import { supabase } from './supabase'
 import './index.css'
 
-// Komponenten
+// Komponenten, die sofort da sein müssen (Navbar & Disclaimer)
 import Navbar from './components/Navbar'
 import Disclaimer from './components/Disclaimer'
 
-// Seiten
-import Startseite from './pages/Startseite'
-import Hallen from './pages/Hallen'
-import Profil from './pages/Profil'
-import NutzerProfil from './pages/NutzerProfil'
-import HalleDetail from './pages/HalleDetail'
-import HalleErstellen from './pages/HalleErstellen'
-import HalleEinstellungen from './pages/HalleEinstellungen'
-import SektionErstellen from './pages/SektionErstellen'
-import SektionDetail from './pages/SektionDetail'
-import WandplanEditor from './pages/WandplanEditor'
-import RouteErstellen from './pages/RouteErstellen'
-import RouteDetail from './pages/RouteDetail'
-import Login from './pages/Login'
-import Datenschutz from './pages/Datenschutz'
-import HallenProfil from './pages/HallenProfil'
-import Ranking from './pages/Ranking'
+// Seiten mit Lazy Loading importieren
+const Startseite = lazy(() => import('./pages/Startseite'))
+const Hallen = lazy(() => import('./pages/Hallen'))
+const Profil = lazy(() => import('./pages/Profil'))
+const NutzerProfil = lazy(() => import('./pages/NutzerProfil'))
+const HalleDetail = lazy(() => import('./pages/HalleDetail'))
+const HalleErstellen = lazy(() => import('./pages/HalleErstellen'))
+const HalleEinstellungen = lazy(() => import('./pages/HalleEinstellungen'))
+const SektionErstellen = lazy(() => import('./pages/SektionErstellen'))
+const SektionDetail = lazy(() => import('./pages/SektionDetail'))
+const WandplanEditor = lazy(() => import('./pages/WandplanEditor'))
+const RouteErstellen = lazy(() => import('./pages/RouteErstellen'))
+const RouteDetail = lazy(() => import('./pages/RouteDetail'))
+const Login = lazy(() => import('./pages/Login'))
+const Datenschutz = lazy(() => import('./pages/Datenschutz'))
+const HallenProfil = lazy(() => import('./pages/HallenProfil'))
+const Ranking = lazy(() => import('./pages/Ranking'))
+
+// Ein einfacher Lade-Indikator
+const PageLoader = () => (
+  <div className="loader-container">
+    <div className="loader-spinner"></div>
+    <div style={{ letterSpacing: '1px', textTransform: 'uppercase', fontSize: '0.7rem' }}>
+      Wird geladen...
+    </div>
+  </div>
+)
 
 function App() {
   const [session, setSession] = useState(null)
 
   useEffect(() => {
-    // 1. Aktuelle Session beim Laden prüfen
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
 
-    // 2. Auf Änderungen hören (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
 
-    // 3. WICHTIG: Cleanup-Funktion gegen den Lock-Error!
-    // Hiermit wird der Lock beim Unmounten sauber freigegeben.
-    return () => {
-      subscription.unsubscribe()
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
   return (
     <BrowserRouter>
       <Disclaimer />
-      {/* Wir geben die Session an die Navbar weiter */}
-      <Navbar session={session} />
+      <Navbar />
 
-      <Routes>
-        <Route path="/" element={<Startseite />} />
-        <Route path="/hallen" element={<Hallen />} />
-        
-        {/* Profil-Seite bekommt die Session, um zu wissen, wer eingeloggt ist */}
-        <Route path="/profil" element={<Profil session={session} />} />
-        
-        <Route path="/nutzer/:userId" element={<NutzerProfil />} />
-        <Route path="/halle/:gymId" element={<HalleDetail />} />
-        <Route path="/halle-erstellen" element={<HalleErstellen />} />
-        <Route path="/halle/:gymId/einstellungen" element={<HalleEinstellungen />} />
-        <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
-        <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
-        <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
-        <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
-        <Route path="/route/:routeId" element={<RouteDetail />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/datenschutz" element={<Datenschutz />} />
-        <Route path="/halle/:gymId/nutzer/:userId" element={<HallenProfil />} />
-        <Route path="/halle/:gymId/ranking" element={<Ranking />} />
-      </Routes>
+      {/* Suspense fängt das Warten auf die "Lazy" Komponenten ab */}
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Startseite />} />
+          <Route path="/hallen" element={<Hallen />} />
+          <Route path="/profil" element={<Profil session={session} />} />
+          <Route path="/nutzer/:userId" element={<NutzerProfil />} />
+          <Route path="/halle/:gymId" element={<HalleDetail />} />
+          <Route path="/halle-erstellen" element={<HalleErstellen />} />
+          <Route path="/halle/:gymId/einstellungen" element={<HalleEinstellungen />} />
+          <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
+          <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
+          <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
+          <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
+          <Route path="/route/:routeId" element={<RouteDetail />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/datenschutz" element={<Datenschutz />} />
+          <Route path="/halle/:gymId/nutzer/:userId" element={<HallenProfil />} />
+          <Route path="/halle/:gymId/ranking" element={<Ranking />} />
+        </Routes>
+      </Suspense>
 
       <footer style={{
         borderTop: '1px solid #1a1a1a', padding: '1.5rem',
