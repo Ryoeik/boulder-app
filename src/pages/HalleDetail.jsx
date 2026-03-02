@@ -472,15 +472,25 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
         const zoomFaktor = neuerZoom / letzterPinch.current.zoom
         const neuesPanX = offsetX - (offsetX - letzterPinch.current.panX) * zoomFaktor
         const neuesPanY = offsetY - (offsetY - letzterPinch.current.panY) * zoomFaktor
-        setPanX(neuerZoom === 1 ? 0 : neuesPanX)
-        setPanY(neuerZoom === 1 ? 0 : neuesPanY)
+       if (neuerZoom === 1) {
+          setPanX(0); setPanY(0)
+        } else {
+          const maxPanX = (window.innerWidth * (neuerZoom - 1)) / 2
+          const maxPanY = (window.innerHeight * (neuerZoom - 1)) / 2
+          setPanX(Math.max(-maxPanX, Math.min(maxPanX, neuesPanX)))
+          setPanY(Math.max(-maxPanY, Math.min(maxPanY, neuesPanY)))
+        }
       }
       
       setZoom(neuerZoom)
       touchStart.current = null
     } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
-      setPanX(e.touches[0].clientX - letzterPan.current.x)
-      setPanY(e.touches[0].clientY - letzterPan.current.y)
+      const maxPanX = (window.innerWidth * (zoom - 1)) / 2
+      const maxPanY = (window.innerHeight * (zoom - 1)) / 2
+      const neuX = e.touches[0].clientX - letzterPan.current.x
+      const neuY = e.touches[0].clientY - letzterPan.current.y
+      setPanX(Math.max(-maxPanX, Math.min(maxPanX, neuX)))
+      setPanY(Math.max(-maxPanY, Math.min(maxPanY, neuY)))
       touchStart.current = null
     }
   }
