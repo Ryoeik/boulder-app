@@ -139,119 +139,124 @@ function Startseite() {
   }
 
   return (
-    <div className="container" style={{ maxWidth: '600px' }}>
+    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 1rem' }}>
 
       {/* Meine Hallen */}
       <div style={{
-        display: 'flex', gap: '0.75rem', overflowX: 'auto',
-        paddingBottom: '0.5rem', marginBottom: '1.5rem',
+        display: 'flex', gap: '0.5rem', overflowX: 'auto',
+        paddingBottom: '0.5rem', margin: '1rem 0',
         scrollbarWidth: 'none'
       }}>
         {meineHallen.map(halle => (
           <Link key={halle.id} to={`/halle/${halle.id}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
             <div style={{
               background: '#1a1a1a', border: '1px solid #2a2a2a',
-              borderRadius: '10px', padding: '0.6rem 1rem',
-              fontSize: '0.85rem', color: 'white', whiteSpace: 'nowrap'
+              borderRadius: '20px', padding: '0.4rem 0.9rem',
+              fontSize: '0.8rem', color: '#aaa', whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: '0.4rem'
             }}>
-              🏠 {halle.name}
+              {halle.image_url
+                ? <img src={halle.image_url} style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} />
+                : '🏠'}
+              {halle.name}
             </div>
           </Link>
         ))}
       </div>
 
       {/* Feed */}
-      <h2 style={{ marginBottom: '1rem' }}>📰 Feed</h2>
+      <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '1rem' }}>
+        {feed.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: '#444' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🧗</div>
+            <p>Noch keine Aktivitäten in deinen Hallen.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {feed.map(item => {
+              const profil = item.profil
+              const name = profil?.username || 'Kletterer'
+              const halle = meineHallen.find(h => h.id === item.route?.gym_id)
 
-      {feed.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-          <p style={{ color: '#666' }}>Noch keine Aktivitäten in deinen Hallen.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {feed.map(item => {
-            const profil = item.profil
-            const name = profil?.username || 'Kletterer'
-            const halle = meineHallen.find(h => h.id === item.route?.gym_id)
-
-            return (
-              <div key={item.id} className="card" style={{ padding: '1rem' }}>
-
-                {/* Header: Avatar + Name + Datum */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <Link to={halle ? `/halle/${halle.id}/nutzer/${item.userId}` : `/nutzer/${item.userId}`}
-                    style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '50%',
-                      background: profil?.avatar_url ? 'transparent' : '#ff6b00',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '1rem', overflow: 'hidden', flexShrink: 0,
-                      border: '2px solid #2a2a2a'
-                    }}>
-                      {profil?.avatar_url
-                        ? <img src={profil.avatar_url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : '🧗'}
-                    </div>
-                    <div>
-                      <div style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '0.9rem' }}>{name}</div>
-                      <div style={{ color: '#555', fontSize: '0.75rem' }}>
-                        {new Date(item.datum).toLocaleDateString('de-DE', {
-                          day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-                        })}
-                        {halle && <span> · {halle.name}</span>}
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-
-                {/* Tick */}
-                {item.typ === 'tick' && item.route && (
-                  <Link to={`/route/${item.route.id}`} style={{ textDecoration: 'none' }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      background: '#111', borderRadius: '8px', padding: '0.75rem'
-                    }}>
+              return (
+                <div key={item.id} style={{
+                  background: '#111', borderRadius: '16px',
+                  border: '1px solid #1a1a1a', overflow: 'hidden'
+                }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem 0.5rem' }}>
+                    <Link to={halle ? `/halle/${halle.id}/nutzer/${item.userId}` : `/nutzer/${item.userId}`}
+                      style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1 }}>
                       <div style={{
-                        width: '10px', alignSelf: 'stretch', borderRadius: '4px',
-                        background: item.route.color, flexShrink: 0
-                      }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                          {item.route.name}
-                        </div>
-                        <div style={{ color: '#ff6b00', fontSize: '0.8rem' }}>{item.route.setter_grade}</div>
-                      </div>
-                      <span style={{
-                        background: TICK_INFO[item.tickTyp]?.bg || '#444',
-                        color: TICK_INFO[item.tickTyp]?.text || '#fff',
-                        padding: '0.2rem 0.6rem', borderRadius: '20px',
-                        fontSize: '0.75rem', fontWeight: 'bold'
+                        width: '36px', height: '36px', borderRadius: '50%',
+                        background: '#2a2a2a', overflow: 'hidden', flexShrink: 0,
+                        border: '2px solid #2a2a2a'
                       }}>
-                        {TICK_INFO[item.tickTyp]?.label || '✅'}
-                      </span>
-                    </div>
-                  </Link>
-                )}
-
-                {/* Beta Video */}
-                {item.typ === 'video' && item.route && (
-                  <div>
-                    <div style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                      🎬 Beta Video für <Link to={`/route/${item.route.id}`} style={{ color: '#ff6b00' }}>
-                        {item.route.name} · {item.route.setter_grade}
-                      </Link>
-                    </div>
-                    <video
-                      src={item.videoUrl} controls
-                      style={{ width: '100%', borderRadius: '8px', maxHeight: '300px' }}
-                    />
+                        {profil?.avatar_url
+                          ? <img src={profil.avatar_url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>🧗</div>}
+                      </div>
+                      <div>
+                        <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem' }}>{name}</div>
+                        <div style={{ color: '#444', fontSize: '0.72rem' }}>
+                          {new Date(item.datum).toLocaleDateString('de-DE', {
+                            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+                          })}
+                          {halle && <span> · {halle.name}</span>}
+                        </div>
+                      </div>
+                    </Link>
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+
+                  {/* Tick */}
+                  {item.typ === 'tick' && item.route && (
+                    <Link to={`/route/${item.route.id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.75rem',
+                        margin: '0 0.75rem 0.75rem', padding: '0.6rem 0.75rem',
+                        background: '#0a0a0a', borderRadius: '10px'
+                      }}>
+                        <div style={{
+                          width: '6px', alignSelf: 'stretch', borderRadius: '3px',
+                          background: item.route.color, flexShrink: 0, minHeight: '32px'
+                        }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: '#aaa', fontSize: '0.75rem' }}>{item.route.setter_grade}</div>
+                          <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 'bold' }}>{item.route.name}</div>
+                        </div>
+                        <span style={{
+                          background: TICK_INFO[item.tickTyp]?.bg || '#444',
+                          color: TICK_INFO[item.tickTyp]?.text || '#fff',
+                          padding: '0.2rem 0.6rem', borderRadius: '20px',
+                          fontSize: '0.75rem', fontWeight: 'bold', flexShrink: 0
+                        }}>
+                          {TICK_INFO[item.tickTyp]?.label || '✅'}
+                        </span>
+                      </div>
+                    </Link>
+                  )}
+
+                  {/* Beta Video */}
+                  {item.typ === 'video' && item.route && (
+                    <div>
+                      <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.8rem', color: '#555' }}>
+                        🎬 Beta für{' '}
+                        <Link to={`/route/${item.route.id}`} style={{ color: '#ff6b00', textDecoration: 'none' }}>
+                          {item.route.name} · {item.route.setter_grade}
+                        </Link>
+                      </div>
+                      <video
+                        src={item.videoUrl} controls
+                        style={{ width: '100%', display: 'block', maxHeight: '320px', background: '#000' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
