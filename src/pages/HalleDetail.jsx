@@ -86,11 +86,33 @@ function HalleDetail() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
         setNutzerId(session.user.id)
+
+        // SuperAdmin prüfen
+        const { data: profil } = await supabase
+          .from('profiles').select('is_app_admin').eq('id', session.user.id).single()
+        const superAdmin = profil?.is_app_admin === true
+
         const { data: mitglied } = await supabase
           .from('gym_members').select('role')
-          .eq('gym_id', id).eq('user_id', session.user.id).single()
-        setNutzerRolle(mitglied?.role || null)
-        setMitgliedschaft(mitglied || null)
+          .eq('gym_id', id).eq('user_id', session.user.id).maybeSingle()
+
+        if (superAdmin && !mitglied) {
+          // SuperAdmin noch kein Mitglied → direkt als Admin beitreten
+          await supabase.from('gym_members').insert({
+            gym_id: id, user_id: session.user.id, role: 'admin'
+          })
+          setNutzerRolle('admin')
+          setMitgliedschaft({ role: 'admin' })
+        } else if (superAdmin && mitglied?.role !== 'admin') {
+          // SuperAdmin ist Mitglied aber nicht Admin → hochstufen
+          await supabase.from('gym_members').update({ role: 'admin' })
+            .eq('gym_id', id).eq('user_id', session.user.id)
+          setNutzerRolle('admin')
+          setMitgliedschaft({ role: 'admin' })
+        } else {
+          setNutzerRolle(mitglied?.role || null)
+          setMitgliedschaft(mitglied || null)
+        }
       }
 
       setLaden(false)
@@ -104,10 +126,16 @@ function HalleDetail() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { navigate('/login'); return }
     setBeitretenLaden(true)
+
+    // SuperAdmin tritt immer als Admin bei
+    const { data: profil } = await supabase
+      .from('profiles').select('is_app_admin').eq('id', session.user.id).single()
+    const rolle = profil?.is_app_admin ? 'admin' : 'member'
+
     const { error } = await supabase.from('gym_members').insert({
-      gym_id: id, user_id: session.user.id, role: 'member'
+      gym_id: id, user_id: session.user.id, role: rolle
     })
-    if (!error) { setMitgliedschaft({ role: 'member' }); setNutzerRolle('member') }
+    if (!error) { setMitgliedschaft({ role: rolle }); setNutzerRolle(rolle) }
     setBeitretenLaden(false)
   }
 
