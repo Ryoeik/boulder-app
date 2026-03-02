@@ -290,17 +290,35 @@ function WandplanEditor() {
   }
 
   async function routeArchivieren(id) {
-    await supabase.from('routes').update({ is_active: false }).eq('id', id)
     const archivRoute = routen.find(r => r.id === id)
+
+    // Marker-Bild aus Storage löschen (wird beim Wiederherstellen neu generiert)
+    await supabase.storage.from('route-images').remove([`${id}-marker.jpg`])
+
+    // Marker-Koordinaten + Bild-URL zurücksetzen
+    await supabase.from('routes').update({
+      is_active: false,
+      marker_x: null, marker_y: null, marker_width: null, marker_height: null,
+      image_url: null
+    }).eq('id', id)
+
     setRouten(prev => prev.filter(r => r.id !== id))
     setMarker(prev => prev.filter(m => m.routeId !== id))
-    if (archivRoute) setArchiviertRouten(prev => [...prev, { ...archivRoute, is_active: false }])
+    if (archivRoute) setArchiviertRouten(prev => [...prev, { ...archivRoute, is_active: false, image_url: null }])
     setBearbeiteRoute(null)
   }
 
   async function routeLoeschen(id, imageUrl) {
     if (!window.confirm('Route wirklich löschen?')) return
-    if (imageUrl) await supabase.storage.from('route-images').remove([imageUrl.split('/').pop()])
+
+    // Manuell hochgeladenes Foto löschen
+    if (imageUrl) {
+      const dateiName = imageUrl.split('/').pop()
+      await supabase.storage.from('route-images').remove([dateiName])
+    }
+    // Marker-Bild löschen (auto-generiert)
+    await supabase.storage.from('route-images').remove([`${id}-marker.jpg`])
+
     await supabase.from('routes').delete().eq('id', id)
     setRouten(prev => prev.filter(r => r.id !== id))
     setMarker(prev => prev.filter(m => m.routeId !== id))

@@ -43,6 +43,13 @@ function HalleErstellen() {
       return
     }
 
+    // Ersteller wird automatisch Admin der Halle
+    await supabase.from('gym_members').insert({
+      gym_id: data.id,
+      user_id: session.user.id,
+      role: 'admin'
+    })
+
     navigate('/halle/' + data.id)
   }
 
@@ -116,7 +123,7 @@ function HalleErstellen() {
           <div style={infoBoxStyle}>
             <span style={{ fontSize: '1.2rem' }}>ℹ️</span>
             <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: '1.4' }}>
-              Neue Hallen starten als <strong>Community-Projekt</strong>. Offizielle Hallenbetreiber können später die Verifizierung beantragen.
+              Neue Hallen starten als <strong>Community-Projekt</strong>. Du wirst automatisch <strong>Admin</strong> der Halle. Offizielle Hallenbetreiber können später die Verifizierung beantragen.
             </p>
           </div>
 
@@ -162,7 +169,7 @@ const cardStyle = {
   border: '1px solid #222',
   boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
   overflow: 'hidden',
-  position: 'relative' // Wichtig für absolutes Positioning des Buttons, falls gewünscht
+  position: 'relative'
 }
 
 const headerStyle = {
