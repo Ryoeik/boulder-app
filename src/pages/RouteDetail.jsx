@@ -340,7 +340,7 @@ function RouteDetail() {
             >
               📹 Video aufnehmen oder hochladen
               <input type="file" accept="video/mp4,video/quicktime,video/mov"
-                capture="environment" onChange={videoAuswaehlen} style={{ display: 'none' }} />
+               onChange={videoAuswaehlen} style={{ display: 'none' }} />
             </label>
           ) : (
             <div>
