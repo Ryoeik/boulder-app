@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { hallenXPBerechnen } from '../utils/xpSystem'
+import { hallenXPBerechnen, levelBerechnen, levelAnzeige } from '../utils/xpSystem'
 import LevelAnzeige from '../components/LevelAnzeige'
 
 const GRADE = ['?','4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A']
@@ -14,40 +14,36 @@ const TICK_FARBEN = {
 
 function HallenProfil() {
   const { gymId, userId } = useParams()
-  const [profil, setProfil] = useState(null)
-  const [halle, setHalle] = useState(null)
+  const [profil, setProfil]   = useState(null)
+  const [halle, setHalle]     = useState(null)
   const [mitglied, setMitglied] = useState(null)
-  const [ticks, setTicks] = useState([])
-  const [routen, setRouten] = useState({})
+  const [ticks, setTicks]     = useState([])
+  const [routen, setRouten]   = useState({})
   const [ichSelbst, setIchSelbst] = useState(false)
-  const [laden, setLaden] = useState(true)
+  const [laden, setLaden]     = useState(true)
 
   useEffect(() => {
     async function datenLaden() {
-      // Eingeloggter Nutzer
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user?.id === userId) setIchSelbst(true)
 
-      // Profil laden
       const { data: profilData } = await supabase
         .from('profiles').select('*').eq('id', userId).maybeSingle()
       setProfil(profilData)
 
-      // Halle laden
       const { data: halleData } = await supabase
         .from('gyms').select('*').eq('id', gymId).single()
       setHalle(halleData)
 
-      // Mitgliedschaft laden (für Beitrittsdatum und Rolle)
       const { data: mitgliedData } = await supabase
         .from('gym_members').select('*')
         .eq('gym_id', gymId).eq('user_id', userId).maybeSingle()
       setMitglied(mitgliedData)
 
-      // Ticks in dieser Halle laden
+      // Nur aktive Routen für die Tick-Liste
       const { data: routenInHalle } = await supabase
         .from('routes').select('id, name, setter_grade, color, section_id')
-        .eq('gym_id', gymId)
+        .eq('gym_id', gymId).eq('is_active', true)
 
       const routenMap = {}
       ;(routenInHalle || []).forEach(r => { routenMap[r.id] = r })
@@ -68,12 +64,12 @@ function HallenProfil() {
     datenLaden()
   }, [gymId, userId])
 
-  // XP berechnen
   const xp = hallenXPBerechnen(ticks, routen)
+  const { level } = levelBerechnen(xp)
+  const { farbe, name } = levelAnzeige(level)
 
   const anzeigeName = profil?.username || '🧗 Unbekannter Kletterer'
 
-  // Schwierigkeitsverteilung
   const gradVerteilung = GRADE.map(grad => ({
     grad,
     anzahl: ticks.filter(t => routen[t.route_id]?.setter_grade === grad).length
@@ -98,25 +94,43 @@ function HallenProfil() {
         </div>
       )}
 
-      {/* Profil Header */}
+      {/* Profil Header – gleiche Struktur wie NutzerProfil */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <div style={{
-          width: '80px', height: '80px', borderRadius: '50%',
+          width: '90px', height: '90px', borderRadius: '50%',
           background: profil?.avatar_url ? 'transparent' : '#ff6b00',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '2rem', overflow: 'hidden', border: '3px solid #2a2a2a', flexShrink: 0
+          fontSize: '2.5rem', overflow: 'hidden', border: '3px solid #2a2a2a', flexShrink: 0
         }}>
           {profil?.avatar_url
             ? <img src={profil.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : '🧗'}
         </div>
+
         <div style={{ flex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: '1.4rem' }}>{anzeigeName}</h1>
-          <p style={{ color: '#aaa', margin: '0.25rem 0', fontSize: '0.9rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>{anzeigeName}</h1>
+            {/* Level als Zahl – kompakter Badge */}
+            <span style={{
+              background: `${farbe}22`, border: `1px solid ${farbe}`,
+              color: farbe, padding: '0.2rem 0.6rem',
+              borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold'
+            }}>
+              Lvl {level} · {name}
+            </span>
+          </div>
+
+          {profil?.bio
+            ? <p style={{ color: '#aaa', margin: '0.25rem 0', fontSize: '0.9rem' }}>{profil.bio}</p>
+            : <p style={{ color: '#555', fontStyle: 'italic', margin: '0.25rem 0', fontSize: '0.9rem' }}>Keine Beschreibung</p>
+          }
+
+          <p style={{ color: '#666', margin: '0.25rem 0', fontSize: '0.85rem' }}>
             🏠 {halle?.name} · {halle?.city}
           </p>
+
           {mitglied ? (
-            <p style={{ color: '#666', fontSize: '0.85rem', margin: '0.25rem 0' }}>
+            <p style={{ color: '#666', fontSize: '0.85rem', margin: '0.15rem 0' }}>
               Mitglied seit {new Date(mitglied.created_at).toLocaleDateString('de-DE')}
               {' '}·{' '}
               <span style={{
@@ -128,24 +142,24 @@ function HallenProfil() {
               </span>
             </p>
           ) : (
-            <p style={{ color: '#666', fontSize: '0.85rem' }}>Kein Mitglied dieser Halle</p>
+            <p style={{ color: '#666', fontSize: '0.85rem', margin: '0.15rem 0' }}>Kein Mitglied dieser Halle</p>
           )}
         </div>
       </div>
 
-      {/* Hallen Level */}
+      {/* XP Balken – dünn */}
       <LevelAnzeige xp={xp} titel="Hallen-Level" />
 
       {/* Statistik Kacheln */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
         {[
-          { zahl: ticks.length, label: 'Sends' },
-          { zahl: ticks.filter(t => t.tick_type === 'flash').length, label: '⚡ Flash' },
-          { zahl: ticks.filter(t => t.tick_type === 'second_try').length, label: '🔄 2nd Try' },
-          { zahl: ticks.filter(t => t.tick_type === 'done').length, label: '✅ Geschafft' },
+          { zahl: ticks.length,                                                label: 'Sends' },
+          { zahl: ticks.filter(t => t.tick_type === 'flash').length,           label: '⚡ Flash' },
+          { zahl: ticks.filter(t => t.tick_type === 'second_try').length,      label: '🔄 2nd Try' },
+          { zahl: ticks.filter(t => t.tick_type === 'done').length,            label: '✅ Geschafft' },
         ].map(({ zahl, label }) => (
           <div key={label} className="card" style={{ textAlign: 'center', padding: '1rem' }}>
-            <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#ff6b00' }}>{zahl}</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ff6b00' }}>{zahl}</div>
             <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: '0.2rem' }}>{label}</div>
           </div>
         ))}
@@ -155,16 +169,16 @@ function HallenProfil() {
       {gradVerteilung.length > 0 && (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <h2 style={{ marginBottom: '1.25rem' }}>📊 Schwierigkeitsverteilung</h2>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '100px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px', padding: '0 0.5rem' }}>
             {gradVerteilung.map(({ grad, anzahl }) => (
               <div key={grad} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '0.6rem', color: '#aaa' }}>{anzahl}</span>
                 <div style={{
-                  width: '100%', height: `${(anzahl / maxGrad) * 80}px`,
+                  width: '100%', height: `${(anzahl / maxGrad) * 90}px`,
                   background: 'linear-gradient(to top, #ff6b00, #ff9f50)',
                   borderRadius: '4px 4px 0 0', minHeight: '4px'
                 }} />
-                <span style={{ fontSize: '0.6rem', color: '#aaa', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '0.6rem', color: '#aaa', transform: 'rotate(-45deg)', transformOrigin: 'center', whiteSpace: 'nowrap' }}>
                   {grad}
                 </span>
               </div>
@@ -200,7 +214,8 @@ function HallenProfil() {
                   {route?.setter_grade && (
                     <span style={{
                       background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
-                      padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold'
+                      padding: '0.2rem 0.6rem', borderRadius: '20px',
+                      fontSize: '0.85rem', fontWeight: 'bold'
                     }}>{route.setter_grade}</span>
                   )}
                   <span style={{
