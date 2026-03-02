@@ -133,20 +133,20 @@ function HalleDetail() {
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
         {nutzerId && (
           <Link to={`/halle/${id}/nutzer/${nutzerId}`} style={iconBtnStyle}>
-            👤
+            👤<span style={iconBtnLabel}>Profil</span>
           </Link>
         )}
         <Link to={`/halle/${id}/ranking`} style={iconBtnStyle}>
-          🏆
+          🏆<span style={iconBtnLabel}>Ranking</span>
         </Link>
         {istAdmin && (
           <Link to={`/halle/${id}/sektionen`} style={iconBtnStyle}>
-            🗺️
+            🗺️<span style={iconBtnLabel}>Routen</span>
           </Link>
         )}
         {istAdmin && (
           <Link to={`/halle/${id}/einstellungen`} style={iconBtnStyle}>
-            ⚙️
+            ⚙️<span style={iconBtnLabel}>Settings</span>
           </Link>
         )}
         {!istAdmin && (
@@ -154,13 +154,13 @@ function HalleDetail() {
             <button onClick={halleVerlassen} disabled={beitretenLaden} style={{
               ...iconBtnStyle, borderColor: '#ff4444', color: '#ff4444', background: 'rgba(255,68,68,0.05)'
             }}>
-              {beitretenLaden ? '...' : '🚪'}
+              🚪<span style={{ ...iconBtnLabel, color: '#ff4444' }}>Verlassen</span>
             </button>
           ) : (
             <button onClick={halleBetreten} disabled={beitretenLaden} style={{
               ...iconBtnStyle, borderColor: '#ff6b00', color: '#ff6b00', background: 'rgba(255,107,0,0.1)'
             }}>
-              {beitretenLaden ? '...' : '🤝 Beitreten'}
+              🤝<span style={{ ...iconBtnLabel, color: '#ff6b00' }}>Beitreten</span>
             </button>
           )
         )}
@@ -601,11 +601,13 @@ const selectStyle = {
 }
 
 const iconBtnStyle = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: '42px', height: '42px', borderRadius: '10px',
+  display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  gap: '0.2rem', padding: '0.5rem 0.75rem', borderRadius: '10px',
   border: '1px solid #2a2a2a', background: '#1a1a1a',
   color: 'white', textDecoration: 'none', fontSize: '1.2rem',
-  cursor: 'pointer', flexShrink: 0
+  cursor: 'pointer', flexShrink: 0, minWidth: '56px'
 }
+
+const iconBtnLabel = { fontSize: '0.65rem', color: '#aaa', whiteSpace: 'nowrap' }
 
 export default HalleDetail
