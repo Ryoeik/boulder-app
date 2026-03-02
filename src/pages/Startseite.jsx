@@ -3,36 +3,31 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Startseite() {
-  const [nutzer, setNutzer] = useState(null)
+  const [nutzer, setNutzer] = useState(undefined) // undefined = noch nicht geprüft
   const [meineHallen, setMeineHallen] = useState([])
   const [feed, setFeed] = useState([])
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession()
       const user = session?.user ?? null
       setNutzer(user)
-      if (!user) {
-        setMeineHallen([])
-        setFeed([])
-        setLaden(false)
-      }
-    })
-    return () => authListener.subscription.unsubscribe()
+    }
+    init()
   }, [])
 
   useEffect(() => {
-    if (nutzer === null && !laden) return
-    if (nutzer === null) return
+    if (nutzer === undefined) return // noch nicht initialisiert
+
+    if (!nutzer) {
+      setLaden(false)
+      return
+    }
 
     async function datenLaden() {
-      const user = nutzer
-
-      // Meine Hallen laden
       const { data: mitgliedschaften } = await supabase
-        .from('gym_members')
-        .select('gym_id, role')
-        .eq('user_id', user.id)
+        .from('gym_members').select('gym_id, role').eq('user_id', nutzer.id)
 
       const hallenIds = (mitgliedschaften || []).map(m => m.gym_id)
 
@@ -42,36 +37,26 @@ function Startseite() {
         .from('gyms').select('*').in('id', hallenIds)
       setMeineHallen(hallenData || [])
 
-      // Alle Routen in meinen Hallen
       const { data: routenData } = await supabase
         .from('routes').select('id, name, color, setter_grade, gym_id, is_active')
-        .in('gym_id', hallenIds)
-        .eq('is_active', true)
+        .in('gym_id', hallenIds).eq('is_active', true)
 
       const routenMap = {}
       ;(routenData || []).forEach(r => { routenMap[r.id] = r })
 
-      // Sends von anderen Mitgliedern in meinen Hallen (letzte 50)
       const routenIds = (routenData || []).map(r => r.id)
       let feedItems = []
 
       if (routenIds.length > 0) {
         const { data: tickData } = await supabase
-          .from('ticks')
-          .select('*')
-          .in('route_id', routenIds)
-          .order('ticked_at', { ascending: false })
-          .limit(50)
+          .from('ticks').select('*').in('route_id', routenIds)
+          .order('ticked_at', { ascending: false }).limit(50)
 
         const { data: videoData } = await supabase
-          .from('comments')
-          .select('*')
-          .in('route_id', routenIds)
+          .from('comments').select('*').in('route_id', routenIds)
           .not('video_url', 'is', null)
-          .order('created_at', { ascending: false })
-          .limit(20)
+          .order('created_at', { ascending: false }).limit(20)
 
-        // User IDs sammeln
         const userIds = [...new Set([
           ...(tickData || []).map(t => t.user_id),
           ...(videoData || []).map(v => v.user_id)
@@ -82,25 +67,16 @@ function Startseite() {
         const profileMap = {}
         ;(profileData || []).forEach(p => { profileMap[p.id] = p })
 
-        // Ticks als Feed Items
         feedItems = [
           ...(tickData || []).map(t => ({
-            typ: 'tick',
-            id: t.id,
-            userId: t.user_id,
-            profil: profileMap[t.user_id],
-            route: routenMap[t.route_id],
-            tickTyp: t.tick_type,
-            datum: t.ticked_at
+            typ: 'tick', id: t.id, userId: t.user_id,
+            profil: profileMap[t.user_id], route: routenMap[t.route_id],
+            tickTyp: t.tick_type, datum: t.ticked_at
           })),
           ...(videoData || []).map(v => ({
-            typ: 'video',
-            id: v.id,
-            userId: v.user_id,
-            profil: profileMap[v.user_id],
-            route: routenMap[v.route_id],
-            videoUrl: v.video_url,
-            datum: v.created_at
+            typ: 'video', id: v.id, userId: v.user_id,
+            profil: profileMap[v.user_id], route: routenMap[v.route_id],
+            videoUrl: v.video_url, datum: v.created_at
           }))
         ].sort((a, b) => new Date(b.datum) - new Date(a.datum))
       }
@@ -111,17 +87,14 @@ function Startseite() {
     datenLaden()
   }, [nutzer])
 
-  if (laden) return <div className="container"><p>Lädt...</p></div>
+  if (nutzer === undefined || laden) return <div className="container"><p>Lädt...</p></div>
 
-  // Nicht eingeloggt
   if (!nutzer) {
     return (
       <div className="container" style={{ textAlign: 'center', marginTop: '4rem' }}>
         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🪨</div>
-        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Toter Boulder</h1>
-        <p style={{ color: '#aaa', marginBottom: '2rem' }}>
-          Die Community-App für Boulder-Fans.
-        </p>
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Tote Boulder</h1>
+        <p style={{ color: '#aaa', marginBottom: '2rem' }}>Die Community-App für Boulder-Fans.</p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
           <Link to="/login" className="btn">Einloggen</Link>
           <Link to="/hallen" className="btn btn-outline">Hallen entdecken</Link>
@@ -130,15 +103,12 @@ function Startseite() {
     )
   }
 
-  // Keine Hallen beigetreten
   if (meineHallen.length === 0) {
     return (
       <div className="container" style={{ textAlign: 'center', marginTop: '4rem' }}>
         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏠</div>
         <h1>Noch keine Hallen</h1>
-        <p style={{ color: '#aaa', marginBottom: '2rem' }}>
-          Tritt einer Halle bei um deinen Feed zu sehen.
-        </p>
+        <p style={{ color: '#aaa', marginBottom: '2rem' }}>Tritt einer Halle bei um deinen Feed zu sehen.</p>
         <Link to="/hallen" className="btn">Hallen entdecken →</Link>
       </div>
     )
@@ -152,12 +122,9 @@ function Startseite() {
 
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 1rem' }}>
-
-      {/* Meine Hallen */}
       <div style={{
         display: 'flex', gap: '0.5rem', overflowX: 'auto',
-        paddingBottom: '0.5rem', margin: '1rem 0',
-        scrollbarWidth: 'none'
+        paddingBottom: '0.5rem', margin: '1rem 0', scrollbarWidth: 'none'
       }}>
         {meineHallen.map(halle => (
           <Link key={halle.id} to={`/halle/${halle.id}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
@@ -176,7 +143,6 @@ function Startseite() {
         ))}
       </div>
 
-      {/* Feed */}
       <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '1rem' }}>
         {feed.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem', color: '#444' }}>
@@ -189,13 +155,11 @@ function Startseite() {
               const profil = item.profil
               const name = profil?.username || 'Kletterer'
               const halle = meineHallen.find(h => h.id === item.route?.gym_id)
-
               return (
                 <div key={item.id} style={{
                   background: '#111', borderRadius: '16px',
                   border: '1px solid #1a1a1a', overflow: 'hidden'
                 }}>
-                  {/* Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem 0.5rem' }}>
                     <Link to={halle ? `/halle/${halle.id}/nutzer/${item.userId}` : `/nutzer/${item.userId}`}
                       style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1 }}>
@@ -211,16 +175,13 @@ function Startseite() {
                       <div>
                         <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem' }}>{name}</div>
                         <div style={{ color: '#444', fontSize: '0.72rem' }}>
-                          {new Date(item.datum).toLocaleDateString('de-DE', {
-                            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-                          })}
+                          {new Date(item.datum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           {halle && <span> · {halle.name}</span>}
                         </div>
                       </div>
                     </Link>
                   </div>
 
-                  {/* Tick */}
                   {item.typ === 'tick' && item.route && (
                     <Link to={`/route/${item.route.id}`} style={{ textDecoration: 'none' }}>
                       <div style={{
@@ -228,10 +189,7 @@ function Startseite() {
                         margin: '0 0.75rem 0.75rem', padding: '0.6rem 0.75rem',
                         background: '#0a0a0a', borderRadius: '10px'
                       }}>
-                        <div style={{
-                          width: '6px', alignSelf: 'stretch', borderRadius: '3px',
-                          background: item.route.color, flexShrink: 0, minHeight: '32px'
-                        }} />
+                        <div style={{ width: '6px', alignSelf: 'stretch', borderRadius: '3px', background: item.route.color, flexShrink: 0, minHeight: '32px' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ color: '#aaa', fontSize: '0.75rem' }}>{item.route.setter_grade}</div>
                           <div style={{ color: 'white', fontSize: '0.9rem', fontWeight: 'bold' }}>{item.route.name}</div>
@@ -241,14 +199,11 @@ function Startseite() {
                           color: TICK_INFO[item.tickTyp]?.text || '#fff',
                           padding: '0.2rem 0.6rem', borderRadius: '20px',
                           fontSize: '0.75rem', fontWeight: 'bold', flexShrink: 0
-                        }}>
-                          {TICK_INFO[item.tickTyp]?.label || '✅'}
-                        </span>
+                        }}>{TICK_INFO[item.tickTyp]?.label || '✅'}</span>
                       </div>
                     </Link>
                   )}
 
-                  {/* Beta Video */}
                   {item.typ === 'video' && item.route && (
                     <div>
                       <div style={{ padding: '0 1rem 0.5rem', fontSize: '0.8rem', color: '#555' }}>
@@ -257,10 +212,8 @@ function Startseite() {
                           {item.route.name} · {item.route.setter_grade}
                         </Link>
                       </div>
-                      <video
-                        src={item.videoUrl} controls
-                        style={{ width: '100%', display: 'block', maxHeight: '320px', background: '#000' }}
-                      />
+                      <video src={item.videoUrl} controls
+                        style={{ width: '100%', display: 'block', maxHeight: '320px', background: '#000' }} />
                     </div>
                   )}
                 </div>
