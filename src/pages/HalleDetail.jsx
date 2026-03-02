@@ -420,6 +420,22 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   const letzterPan = useRef(null)
   const touchStart = useRef(null)
   const containerRef = useRef(null)
+  const imgRef = useRef(null)
+
+  function panGrenzen(neuX, neuY, aktZoom) {
+    const img = imgRef.current
+    if (!img) return { x: neuX, y: neuY }
+    const bildBreite = img.naturalWidth
+    const bildHoehe = img.naturalHeight
+    const dargestellteBreite = img.clientWidth
+    const dargestellteHoehe = img.clientHeight
+    const maxPanX = Math.max(0, (dargestellteBreite * aktZoom - window.innerWidth) / 2)
+    const maxPanY = Math.max(0, (dargestellteHoehe * aktZoom - window.innerHeight) / 2)
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, neuX)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, neuY))
+    }
+  }
 
   function pinchAbstand(touches) {
     const dx = touches[0].clientX - touches[1].clientX
@@ -475,22 +491,18 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
        if (neuerZoom === 1) {
           setPanX(0); setPanY(0)
         } else {
-          const maxPanX = (window.innerWidth * (neuerZoom - 1)) / 2
-          const maxPanY = (window.innerHeight * (neuerZoom - 1)) / 2
-          setPanX(Math.max(-maxPanX, Math.min(maxPanX, neuesPanX)))
-          setPanY(Math.max(-maxPanY, Math.min(maxPanY, neuesPanY)))
+          const { x, y } = panGrenzen(neuesPanX, neuesPanY, neuerZoom)
+          setPanX(x); setPanY(y)
         }
       }
       
       setZoom(neuerZoom)
       touchStart.current = null
     } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
-      const maxPanX = (window.innerWidth * (zoom - 1)) / 2
-      const maxPanY = (window.innerHeight * (zoom - 1)) / 2
       const neuX = e.touches[0].clientX - letzterPan.current.x
       const neuY = e.touches[0].clientY - letzterPan.current.y
-      setPanX(Math.max(-maxPanX, Math.min(maxPanX, neuX)))
-      setPanY(Math.max(-maxPanY, Math.min(maxPanY, neuY)))
+      const { x, y } = panGrenzen(neuX, neuY, zoom)
+      setPanX(x); setPanY(y)
       touchStart.current = null
     }
   }
@@ -538,7 +550,7 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
         cursor: zoom > 1 ? 'grab' : 'default',
         userSelect: 'none'
       }}>
-        <img src={src} alt="Vollbild"
+         <img ref={imgRef} src={src} alt="Vollbild"
           style={{
             maxWidth: '95vw', maxHeight: '85vh',
             width: 'auto', height: 'auto',
