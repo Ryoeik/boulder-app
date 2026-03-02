@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../supabase'
 import { Link } from 'react-router-dom'
 import AccountLoeschen from '../components/AccountLoeschen'
-import { climberXPBerechnen } from '../xpSystem'
+import { climberXPBerechnen } from '../utils/xpSystem'
 import LevelAnzeige from '../components/LevelAnzeige'
 
 // Fontainebleau-Grade in der richtigen Reihenfolge

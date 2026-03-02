@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { hallenXPBerechnen, levelBerechnen } from '../xpSystem'
+import { hallenXPBerechnen } from '../utils/xpSystem'
 import LevelAnzeige from '../components/LevelAnzeige'
 
 const GRADE = ['?','4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A']
