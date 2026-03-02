@@ -316,15 +316,15 @@ function Profil() {
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
-                      {ticks.length > 0 ? [...ticks].sort((a,b) => GRADE.indexOf(b.setter_grade || routen[b.route_id]?.setter_grade) - GRADE.indexOf(a.setter_grade || routen[a.route_id]?.setter_grade))[0] ? (routen[ticks.reduce((best, t) => GRADE.indexOf(routen[t.route_id]?.setter_grade) > GRADE.indexOf(routen[best.route_id]?.setter_grade) ? t : best, ticks[0])?.route_id]?.setter_grade || '–') : '–' : '–'}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#555' }}>Bester Grad</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
                       {ticks.filter(t => t.tick_type === 'flash').length}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#555' }}>Flashes</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
+                      {ticks.length > 0 ? [...ticks].sort((a,b) => GRADE.indexOf(b.setter_grade || routen[b.route_id]?.setter_grade) - GRADE.indexOf(a.setter_grade || routen[a.route_id]?.setter_grade))[0] ? (routen[ticks.reduce((best, t) => GRADE.indexOf(routen[t.route_id]?.setter_grade) > GRADE.indexOf(routen[best.route_id]?.setter_grade) ? t : best, ticks[0])?.route_id]?.setter_grade || '–') : '–' : '–'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#555' }}>Bester Grad</div>
                   </div>
                 </div>
               </div>
@@ -335,22 +335,6 @@ function Profil() {
 
       {/* ── Climber Level ── */}
       <LevelAnzeige xp={climberXP} titel="🧗 Climber Level" />
-      
-      {/* ── Statistik-Kacheln ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-        {[
-          { zahl: ticks.length,                                           label: 'Gesamt' },
-          { zahl: ticks.filter(t => t.tick_type === 'flash').length,      label: '⚡ Flash' },
-          { zahl: ticks.filter(t => t.tick_type === 'second_try').length, label: '🔄 2nd Try' },
-          { zahl: ticks.filter(t => t.tick_type === 'done').length,       label: '✅ Geschafft' },
-        ].map(({ zahl, label }) => (
-          <div key={label} className="card" style={{ textAlign: 'center', padding: '1rem' }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#ff6b00' }}>{zahl}</div>
-            <div style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.2rem' }}>{label}</div>
-          </div>
-        ))}
-      </div>
-
             {ticks.length > 0 && (
         <>
           {/* ── Sends pro Jahr ── */}

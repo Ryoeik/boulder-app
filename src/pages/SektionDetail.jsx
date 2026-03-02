@@ -21,6 +21,8 @@ function SektionDetail() {
   const { gymId, sektionId } = useParams()
   const [sektion, setSektion] = useState(null)
   const [routen, setRouten] = useState([])
+  const [archiviertRouten, setArchiviertRouten] = useState([])
+  const [zeigeArchiv, setZeigeArchiv] = useState(false)
   const [zeigeForm, setZeigeForm] = useState(false)
   const [bearbeiteRoute, setBearbeiteRoute] = useState(null)
 
@@ -41,9 +43,12 @@ function SektionDetail() {
       setSektion(sektionData)
 
       const { data: routenData } = await supabase
-        .from('routes').select('*').eq('section_id', sektionId)
-        .order('created_at', { ascending: false })
+        .from('routes').select('*').eq('section_id', sektionId).eq('is_active', true)
       setRouten(routenData || [])
+
+      const { data: archivData } = await supabase
+        .from('routes').select('*').eq('section_id', sektionId).eq('is_active', false)
+      setArchiviertRouten(archivData || [])
     }
     datenLaden()
   }, [sektionId])
@@ -158,6 +163,20 @@ function SektionDetail() {
     }
     await supabase.from('routes').delete().eq('id', id)
     setRouten(routen.filter(r => r.id !== id))
+  }
+
+  async function routeArchivieren(id) {
+    await supabase.from('routes').update({ is_active: false }).eq('id', id)
+    const archivRoute = routen.find(r => r.id === id)
+    setRouten(prev => prev.filter(r => r.id !== id))
+    if (archivRoute) setArchiviertRouten(prev => [...prev, archivRoute])
+  }
+
+  async function routeWiederherstellen(id) {
+    await supabase.from('routes').update({ is_active: true }).eq('id', id)
+    setArchiviertRouten(prev => prev.filter(r => r.id !== id))
+    const { data } = await supabase.from('routes').select('*').eq('id', id).single()
+    if (data) setRouten(prev => [...prev, data])
   }
 
   return (
@@ -323,6 +342,17 @@ function SektionDetail() {
                   ✏️
                 </button>
                 <button
+                  onClick={() => routeArchivieren(route.id)}
+                  style={{
+                    background: 'transparent', border: '1px solid #888',
+                    color: '#888', padding: '0.4rem 0.75rem',
+                    borderRadius: '6px', cursor: 'pointer'
+                  }}
+                  title="Archivieren"
+                >
+                  📦
+                </button>
+                <button
                   onClick={() => routeLoeschen(route.id, route.image_url)}
                   style={{
                     background: 'transparent', border: '1px solid #ff4444',
@@ -337,9 +367,56 @@ function SektionDetail() {
           ))}
         </div>
       )}
+    {/* Archivierte Routen */}
+      <div style={{ marginTop: '2rem', marginBottom: '3rem' }}>
+        <button
+          onClick={() => setZeigeArchiv(!zeigeArchiv)}
+          style={{
+            background: 'transparent', border: '1px solid #2a2a2a',
+            color: '#555', padding: '0.5rem 1rem', borderRadius: '8px',
+            cursor: 'pointer', fontSize: '0.9rem'
+          }}
+        >
+          📦 Archivierte Routen ({archiviertRouten.length}) {zeigeArchiv ? '▲' : '▼'}
+        </button>
+
+        {zeigeArchiv && archiviertRouten.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+            {archiviertRouten.map(route => (
+              <div key={route.id} className="card" style={{
+                display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.6
+              }}>
+                <div style={{
+                  width: '8px', height: '50px', borderRadius: '4px',
+                  backgroundColor: route.color, flexShrink: 0
+                }} />
+                <div style={{ flex: 1 }}>
+                  <strong style={{ color: '#aaa' }}>{route.name}</strong>
+                  <div style={{ fontSize: '0.8rem', color: '#555' }}>{route.setter_grade}</div>
+                </div>
+                <button
+                  onClick={() => routeWiederherstellen(route.id)}
+                  style={{
+                    background: 'transparent', border: '1px solid #00c851',
+                    color: '#00c851', padding: '0.4rem 0.75rem',
+                    borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem'
+                  }}
+                >
+                  ♻️ Wiederherstellen
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {zeigeArchiv && archiviertRouten.length === 0 && (
+          <p style={{ color: '#444', fontSize: '0.85rem', marginTop: '0.75rem' }}>Keine archivierten Routen.</p>
+        )}
+      </div>
     </div>
   )
 }
+
 
 const inputStyle = {
   width: '100%', padding: '0.75rem', borderRadius: '8px',
