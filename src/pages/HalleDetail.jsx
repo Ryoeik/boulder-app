@@ -152,6 +152,9 @@ function HalleDetail() {
             Sektionen & Routen verwalten
           </Link>
         )}
+        <Link to={`/halle/${id}/ranking`} className="btn btn-outline">
+          🏆 Ranking
+        </Link>
         {istAdmin && (
           <Link to={`/halle/${id}/einstellungen`} className="btn btn-outline">
             ⚙️ Einstellungen

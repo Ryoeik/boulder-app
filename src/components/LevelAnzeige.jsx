@@ -1,4 +1,4 @@
-import { levelBerechnen, levelAnzeige } from '../xpSystem'
+import { levelBerechnen, levelAnzeige } from '../utils/xpSystem'
 
 function LevelAnzeige({ xp, titel = 'Climber Level', kompakt = false }) {
   const { level, xpImLevel, xpGesamt } = levelBerechnen(xp)

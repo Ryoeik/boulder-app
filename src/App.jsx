@@ -21,6 +21,7 @@ import RouteDetail from './pages/RouteDetail'
 import Login from './pages/Login'
 import Datenschutz from './pages/Datenschutz'
 import HallenProfil from './pages/HallenProfil'
+import Ranking from './pages/Ranking'
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/datenschutz" element={<Datenschutz />} />
         <Route path="/halle/:gymId/nutzer/:userId" element={<HallenProfil />} />
+        <Route path="/halle/:gymId/ranking" element={<Ranking />} />
       </Routes>
 
       <footer style={{
@@ -55,7 +57,7 @@ function App() {
         </a>
         <span style={{ color: '#333', margin: '0 0.75rem' }}>·</span>
         <span style={{ color: '#555', fontSize: '0.85rem' }}>
-          BoulderApp – Ein privates Community-Projekt
+          Toter Boulder – Ein privates Community-Projekt
         </span>
       </footer>
     </BrowserRouter>
