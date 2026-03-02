@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { supabase } from './supabase' // Importiere deinen Client
 import './index.css'
 
 // Komponenten
@@ -24,15 +26,39 @@ import HallenProfil from './pages/HallenProfil'
 import Ranking from './pages/Ranking'
 
 function App() {
+  const [session, setSession] = useState(null)
+
+  useEffect(() => {
+    // 1. Aktuelle Session beim Laden prüfen
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+
+    // 2. Auf Änderungen hören (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    // 3. WICHTIG: Cleanup-Funktion gegen den Lock-Error!
+    // Hiermit wird der Lock beim Unmounten sauber freigegeben.
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
   return (
     <BrowserRouter>
       <Disclaimer />
-      <Navbar />
+      {/* Wir geben die Session an die Navbar weiter */}
+      <Navbar session={session} />
 
       <Routes>
         <Route path="/" element={<Startseite />} />
         <Route path="/hallen" element={<Hallen />} />
-        <Route path="/profil" element={<Profil />} />
+        
+        {/* Profil-Seite bekommt die Session, um zu wissen, wer eingeloggt ist */}
+        <Route path="/profil" element={<Profil session={session} />} />
+        
         <Route path="/nutzer/:userId" element={<NutzerProfil />} />
         <Route path="/halle/:gymId" element={<HalleDetail />} />
         <Route path="/halle-erstellen" element={<HalleErstellen />} />

@@ -26,11 +26,13 @@ function Startseite() {
     }
 
     async function datenLaden() {
-      const { data: mitgliedschaften } = await supabase
+      console.log('datenLaden gestartet für:', nutzer.id)
+      const { data: mitgliedschaften, error: mitgliedFehler } = await supabase
         .from('gym_members').select('gym_id, role').eq('user_id', nutzer.id)
 
       const hallenIds = (mitgliedschaften || []).map(m => m.gym_id)
 
+      console.log('hallenIds:', hallenIds)
       if (hallenIds.length === 0) { setLaden(false); return }
 
       const { data: hallenData } = await supabase
