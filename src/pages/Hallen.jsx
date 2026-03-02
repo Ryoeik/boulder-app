@@ -115,14 +115,44 @@ function Hallen() {
       setNutzer(session?.user ?? null);
 
       // 2. Hallen & Counts laden (Supabase Join Simulation)
-      const { data: gyms } = await supabase
+      // 2. Hallen laden (OHNE Join!)
+      const { data: gyms, error } = await supabase
         .from('gyms')
-        .select(`
-          *,
-          gym_members (id),
-          routes (id)
-        `)
+        .select('*')
         .order('name');
+
+      if (error) {
+        console.error("Fehler beim Laden der Hallen:", error);
+        setLaden(false);
+        return;
+      }
+
+      if (gyms) {
+        // Counts separat holen
+        const aufbereiteteHallen = await Promise.all(
+          gyms.map(async (g) => {
+            const { count: memberCount } = await supabase
+              .from('gym_members')
+              .select('*', { count: 'exact', head: true })
+              .eq('gym_id', g.id);
+
+            const { count: routeCount } = await supabase
+              .from('routes')
+              .select('*', { count: 'exact', head: true })
+              .eq('gym_id', g.id)
+              .neq('is_active', false);
+
+            return {
+              ...g,
+              countMembers: memberCount || 0,
+              countRoutes: routeCount || 0
+            };
+          })
+        );
+
+  setHallen(aufbereiteteHallen);
+  setGefiltert(aufbereiteteHallen);
+}
 
       if (gyms) {
         const aufbereiteteHallen = gyms.map(g => ({
