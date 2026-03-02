@@ -55,7 +55,7 @@ function Navbar() {
       }}>
         <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <span style={{ fontSize: '1.3rem' }}>🪨</span>
-          <span style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '1rem' }}>Tote Boulder</span>
+          <span style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '1rem' }}>Toter Boulder</span>
         </Link>
 
         {/* Menü */}

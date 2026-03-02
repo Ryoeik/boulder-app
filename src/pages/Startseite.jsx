@@ -9,12 +9,27 @@ function Startseite() {
   const [laden, setLaden] = useState(true)
 
   useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        window.location.reload()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    async function datenLaden() {
+
+  useEffect(() => {
     async function datenLaden() {
       const { data: { session } } = await supabase.auth.getSession()
       const user = session?.user
       setNutzer(user)
 
-      if (!user) { setLaden(false); return }
+      if (!user) {
+        setLaden(false)
+        return
+      }
 
       // Meine Hallen laden
       const { data: mitgliedschaften } = await supabase
