@@ -18,7 +18,6 @@ const HalleEinstellungen = lazy(() => import('./pages/HalleEinstellungen'))
 const SektionErstellen = lazy(() => import('./pages/SektionErstellen'))
 const SektionDetail = lazy(() => import('./pages/SektionDetail'))
 const WandplanEditor = lazy(() => import('./pages/WandplanEditor'))
-const RouteErstellen = lazy(() => import('./pages/RouteErstellen'))
 const RouteDetail = lazy(() => import('./pages/RouteDetail'))
 const Login = lazy(() => import('./pages/Login'))
 const Datenschutz = lazy(() => import('./pages/Datenschutz'))
@@ -68,7 +67,6 @@ function App() {
           <Route path="/halle/:gymId/sektionen" element={<SektionErstellen />} />
           <Route path="/halle/:gymId/sektion/:sektionId" element={<SektionDetail />} />
           <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
-          <Route path="/halle/:gymId/route-erstellen" element={<RouteErstellen />} />
           <Route path="/route/:routeId" element={<RouteDetail />} />
           <Route path="/login" element={<Login />} />
           <Route path="/datenschutz" element={<Datenschutz />} />

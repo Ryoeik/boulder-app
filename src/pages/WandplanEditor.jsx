@@ -2,6 +2,20 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 
+const FARBEN = [
+  { name: 'Gelb', hex: '#FFD700' },
+  { name: 'Rot', hex: '#FF4444' },
+  { name: 'Blau', hex: '#4488FF' },
+  { name: 'Grün', hex: '#44BB44' },
+  { name: 'Schwarz', hex: '#222222' },
+  { name: 'Weiß', hex: '#EEEEEE' },
+  { name: 'Orange', hex: '#FF6B00' },
+  { name: 'Lila', hex: '#9944CC' },
+  { name: 'Pink', hex: '#FF44AA' },
+  { name: 'Braun', hex: '#8B4513' },
+]
+const GRADE = ['?','4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A']
+
 function WandplanEditor() {
   const { gymId, sektionId } = useParams()
   const [sektion, setSektion] = useState(null)
@@ -20,6 +34,8 @@ function WandplanEditor() {
   const [neueRouteGrad, setNeueRouteGrad] = useState('6A')
   const [neueRouteFarbe, setNeueRouteFarbe] = useState('#FF4444')
   const [neueRouteSpeichern, setNeueRouteSpeichern] = useState(false)
+  const [neueRouteBeschreibung, setNeueRouteBeschreibung] = useState('')
+  const [neueRouteFehler, setNeueRouteFehler] = useState({})
   const [panX, setPanX] = useState(0)
   const [panY, setPanY] = useState(0)
   const bildRef = useRef(null)
@@ -60,7 +76,7 @@ function WandplanEditor() {
   }
 
   function mausStart(e) {
-    if (!gewaehlteRoute) return
+    if (letzterPan.current) return
     e.preventDefault()
     const { x, y } = koordinatenAusProzent(e.clientX, e.clientY)
     setZieheMarker({ startX: x, startY: y, x, y, width: 0, height: 0 })
@@ -79,8 +95,8 @@ function WandplanEditor() {
 
   function mausEnde() { markerFertigstellen() }
 
-  function touchStart(e) {
-    if (!gewaehlteRoute || e.touches.length !== 1) return
+   function touchStart(e) {
+    if (e.touches.length !== 1) return
     e.preventDefault()
     const touch = e.touches[0]
     const { x, y } = koordinatenAusProzent(touch.clientX, touch.clientY)
@@ -177,14 +193,21 @@ function WandplanEditor() {
   }
 
   async function neueRouteErstellen() {
-    if (!neueRouteName.trim()) return
+    const fehler = {}
+    if (!neueRouteFarbe) fehler.farbe = true
+    if (!neueRouteGrad) fehler.grad = true
+    if (Object.keys(fehler).length > 0) {
+      setNeueRouteFehler(fehler)
+      return
+    }
+    setNeueRouteFehler({})
     setNeueRouteSpeichern(true)
 
-    // Route in DB erstellen
     const { data: neueRoute, error } = await supabase.from('routes').insert({
-      name: neueRouteName.trim(),
+      name: neueRouteName.trim() || 'Unbenannte Route',
       setter_grade: neueRouteGrad,
       color: neueRouteFarbe,
+      description: neueRouteBeschreibung.trim(),
       gym_id: gymId,
       section_id: sektionId,
       is_active: true,
@@ -194,16 +217,18 @@ function WandplanEditor() {
       marker_height: neueRouteFormular.height
     }).select().single()
 
+    console.log('Route erstellen Error:', error)
+    console.log('Route erstellen Data:', neueRoute)
+
     if (!error && neueRoute) {
       setRouten(prev => [...prev, neueRoute])
       setMarker(prev => [...prev, {
         routeId: neueRoute.id,
         x: neueRouteFormular.x, y: neueRouteFormular.y,
         width: neueRouteFormular.width, height: neueRouteFormular.height,
-        color: neueRouteFarbe, name: neueRouteName.trim()
+        color: neueRouteFarbe, name: neueRoute.name
       }])
     }
-
     setNeueRouteFormular(null)
     setNeueRouteSpeichern(false)
   }
@@ -299,45 +324,85 @@ function WandplanEditor() {
         }}>
           <div style={{
             background: '#111', border: '1px solid #2a2a2a',
-            borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '360px'
+            borderRadius: '16px', padding: '1.5rem',
+            width: '100%', maxWidth: '400px',
+            maxHeight: '90vh', overflowY: 'auto'
           }}>
-            <h2 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem' }}>🧗 Neue Route</h2>
+            <div style={{ width: '40px', height: '4px', background: '#2a2a2a', borderRadius: '2px', margin: '0 auto 1.25rem' }} />
+            <h2 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem' }}>🧗 Neue Route erstellen</h2>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <input
-                value={neueRouteName}
-                onChange={e => setNeueRouteName(e.target.value)}
-                placeholder="Routenname"
-                maxLength={50}
-                autoFocus
-                style={inputStyle}
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-              <select value={neueRouteGrad} onChange={e => setNeueRouteGrad(e.target.value)} style={inputStyle}>
-                {['4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A'].map(g => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {['#FF4444','#FFD700','#4CAF50','#2196F3','#9C27B0','#FF9800','#ffffff','#000000','#FF69B4','#00BCD4'].map(farbe => (
-                  <div key={farbe}
-                    onClick={() => setNeueRouteFarbe(farbe)}
-                    style={{
-                      width: '32px', height: '32px', borderRadius: '50%',
-                      background: farbe, cursor: 'pointer',
-                      border: neueRouteFarbe === farbe ? '3px solid white' : '3px solid transparent',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                ))}
+              {/* Name */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#aaa' }}>Routenname</label>
+                <input
+                  value={neueRouteName}
+                  onChange={e => setNeueRouteName(e.target.value)}
+                  placeholder="z.B. Gelber Riese"
+                  maxLength={50}
+                  autoFocus
+                  style={inputStyle}
+                />
               </div>
 
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button className="btn" onClick={neueRouteErstellen} disabled={neueRouteSpeichern || !neueRouteName.trim()} style={{ flex: 1 }}>
-                  {neueRouteSpeichern ? '⏳' : '✅ Erstellen'}
+              {/* Grifffarbe */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.75rem', color: neueRouteFehler.farbe ? '#ff4444' : '#aaa' }}>
+                  Grifffarbe {neueRouteFehler.farbe && '– Bitte wählen!'}
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  {FARBEN.map(f => (
+                    <div key={f.hex} onClick={() => setNeueRouteFarbe(f.hex)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                      <div style={{
+                        width: '40px', height: '40px', borderRadius: '50%', background: f.hex,
+                        border: `3px solid ${neueRouteFarbe === f.hex ? '#ff6b00' : 'transparent'}`,
+                        outline: neueRouteFarbe === f.hex ? '2px solid #ff6b00' : 'none',
+                        transition: 'all 0.2s'
+                      }} />
+                      <span style={{ fontSize: '0.7rem', color: '#aaa' }}>{f.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Schwierigkeitsgrad */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.75rem', color: neueRouteFehler.grad ? '#ff4444' : '#aaa' }}>
+                  Schwierigkeitsgrad {neueRouteFehler.grad && '– Bitte wählen!'}
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'thin' }}>
+                  {GRADE.map(g => (
+                    <span key={g} onClick={() => setNeueRouteGrad(g)} style={{
+                      padding: '0.4rem 0.9rem', borderRadius: '20px', cursor: 'pointer',
+                      border: `1px solid ${neueRouteGrad === g ? '#ff6b00' : '#2a2a2a'}`,
+                      background: neueRouteGrad === g ? 'rgba(255,107,0,0.15)' : '#0a0a0a',
+                      color: neueRouteGrad === g ? '#ff6b00' : '#aaa',
+                      fontSize: '0.85rem', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.2s'
+                    }}>{g}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Beschreibung */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#aaa' }}>Beschreibung (optional)</label>
+                <textarea
+                  value={neueRouteBeschreibung}
+                  onChange={e => setNeueRouteBeschreibung(e.target.value)}
+                  placeholder="Tipps, Beta, besondere Merkmale..."
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn" onClick={neueRouteErstellen}
+                  disabled={neueRouteSpeichern}
+                  style={{ flex: 1, padding: '1rem' }}>
+                  {neueRouteSpeichern ? 'Erstellt...' : 'Route erstellen'}
                 </button>
-                <button className="btn btn-outline" onClick={() => setNeueRouteFormular(null)} style={{ flex: 1 }}>
+                <button className="btn btn-outline" onClick={() => setNeueRouteFormular(null)} style={{ flex: 1, padding: '1rem' }}>
                   Abbrechen
                 </button>
               </div>
@@ -394,7 +459,7 @@ function WandplanEditor() {
                     transition: letzterPinch.current ? 'none' : 'transform 0.1s'
                   }}
                   onMouseDown={e => {
-                    if (!gewaehlteRoute && zoom > 1) {
+                    if (zoom > 1 && !gewaehlteRoute) {
                       letzterPan.current = { x: e.clientX - panX, y: e.clientY - panY }
                     } else {
                       mausStart(e)
