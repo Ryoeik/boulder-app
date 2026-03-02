@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Login() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [passwort, setPasswort] = useState('')
   const [istRegistrierung, setIstRegistrierung] = useState(false)
@@ -17,14 +19,14 @@ function Login() {
       if (error) {
         setNachricht('Fehler: ' + error.message)
       } else {
-        setNachricht('✅ Bestätigungsmail gesendet! Bitte prüfe dein Postfach.')
+        setNachricht('Bestätigungsmail gesendet! Bitte prüfe dein Postfach.')
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password: passwort })
       if (error) {
         setNachricht('Fehler: ' + error.message)
       } else {
-        setNachricht('✅ Erfolgreich eingeloggt!')
+        navigate('/')
       }
     }
     setLaden(false)
@@ -32,7 +34,7 @@ function Login() {
 
   return (
     <div className="container" style={{ maxWidth: '400px' }}>
-      <h1>{istRegistrierung ? '📝 Registrieren' : '🔐 Login'}</h1>
+      <h1>{istRegistrierung ? 'Registrieren' : 'Login'}</h1>
       <p style={{ marginBottom: '2rem' }}>
         {istRegistrierung ? 'Erstelle ein neues Konto' : 'Melde dich an'}
       </p>

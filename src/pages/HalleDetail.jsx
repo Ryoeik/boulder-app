@@ -320,53 +320,195 @@ function HalleDetail() {
       )}
 
       {/* Vollbild Viewer */}
-      {vollbildBild && (
-        <div onClick={() => { setVollbildBild(null); setVollbildMarker([]) }} style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.95)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 9999, cursor: 'zoom-out', padding: '1rem'
-        }}>
-          <button onClick={() => setVollbildBild(null)} style={{
-            position: 'absolute', top: '1rem', right: '1rem',
-            background: 'rgba(255,255,255,0.1)', border: 'none',
-            color: 'white', borderRadius: '50%', width: '40px', height: '40px',
-            cursor: 'pointer', fontSize: '1.2rem'
-          }}>✕</button>
-          <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '90vh' }}>
-            <img src={vollbildBild} alt="Vollbild"
-              onClick={e => e.stopPropagation()}
-              style={{ maxWidth: '100%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }}
-            />
-            {vollbildMarker.map(r => (
-              <div
-                key={r.id}
-                onClick={e => { e.stopPropagation(); setVollbildBild(null); navigate(`/route/${r.id}`) }}
-                style={{
-                  position: 'absolute',
-                  left: `${r.marker_x}%`, top: `${r.marker_y}%`,
-                  width: `${r.marker_width}%`, height: `${r.marker_height}%`,
-                  border: `2px solid ${r.color}`,
-                  borderRadius: '6px',
-                  background: `${r.color}22`,
-                  boxSizing: 'border-box',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{
-                  position: 'absolute', bottom: '100%', left: 0, marginBottom: '2px',
-                  background: r.color, color: 'white',
-                  fontSize: '0.7rem', fontWeight: 'bold',
-                  padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap',
-                  pointerEvents: 'none'
-                }}>
-                  {r.setter_grade}
-                </div>
+      {vollbildBild && (() => {
+        const sektionenMitBild = sektionen.filter(s => s.image_url)
+        const aktuellerIndex = sektionenMitBild.findIndex(s => s.image_url === vollbildBild)
+
+        function vorherigesBild(e) {
+          e.stopPropagation()
+          const neuerIndex = (aktuellerIndex - 1 + sektionenMitBild.length) % sektionenMitBild.length
+          const neueSektion = sektionenMitBild[neuerIndex]
+          setVollbildBild(neueSektion.image_url)
+          setVollbildSektion(neueSektion)
+          setVollbildMarker([])
+          supabase.from('routes').select('id, name, color, setter_grade, marker_x, marker_y, marker_width, marker_height')
+            .eq('section_id', neueSektion.id).eq('is_active', true).not('marker_x', 'is', null)
+            .then(({ data }) => setVollbildMarker(data || []))
+        }
+
+        function naechstesBild(e) {
+          e.stopPropagation()
+          const neuerIndex = (aktuellerIndex + 1) % sektionenMitBild.length
+          const neueSektion = sektionenMitBild[neuerIndex]
+          setVollbildBild(neueSektion.image_url)
+          setVollbildSektion(neueSektion)
+          setVollbildMarker([])
+          supabase.from('routes').select('id, name, color, setter_grade, marker_x, marker_y, marker_width, marker_height')
+            .eq('section_id', neueSektion.id).eq('is_active', true).not('marker_x', 'is', null)
+            .then(({ data }) => setVollbildMarker(data || []))
+        }
+
+        return (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.97)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, overflow: 'hidden',
+            touchAction: 'none'
+          }}>
+            {/* Schließen */}
+            <button onClick={() => { setVollbildBild(null); setVollbildMarker([]) }} style={{
+              position: 'absolute', top: '1rem', right: '1rem',
+              background: 'rgba(255,255,255,0.1)', border: 'none',
+              color: 'white', borderRadius: '50%', width: '40px', height: '40px',
+              cursor: 'pointer', fontSize: '1.2rem', zIndex: 10
+            }}>✕</button>
+
+            {/* Navigation Pfeile */}
+            {sektionenMitBild.length > 1 && (
+              <>
+                <button onClick={vorherigesBild} style={{
+                  position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,0.1)', border: 'none',
+                  color: 'white', borderRadius: '50%', width: '44px', height: '44px',
+                  cursor: 'pointer', fontSize: '1.3rem', zIndex: 10
+                }}>‹</button>
+                <button onClick={naechstesBild} style={{
+                  position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)',
+                  background: 'rgba(255,255,255,0.1)', border: 'none',
+                  color: 'white', borderRadius: '50%', width: '44px', height: '44px',
+                  cursor: 'pointer', fontSize: '1.3rem', zIndex: 10
+                }}>›</button>
+              </>
+            )}
+
+            {/* Punkte Indikator */}
+            {sektionenMitBild.length > 1 && (
+              <div style={{
+                position: 'absolute', bottom: '1rem', left: '50%', transform: 'translateX(-50%)',
+                display: 'flex', gap: '0.4rem', zIndex: 10
+              }}>
+                {sektionenMitBild.map((_, i) => (
+                  <div key={i} style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: i === aktuellerIndex ? '#ff6b00' : 'rgba(255,255,255,0.3)'
+                  }} />
+                ))}
               </div>
-            ))}
+            )}
+
+            {/* Bild mit Zoom */}
+            <ZoomBild
+              src={vollbildBild}
+              marker={vollbildMarker}
+              onMarkerClick={(routeId) => { setVollbildBild(null); setVollbildMarker([]); navigate(`/route/${routeId}`) }}
+              onSwipeLeft={sektionenMitBild.length > 1 ? naechstesBild : null}
+              onSwipeRight={sektionenMitBild.length > 1 ? vorherigesBild : null}
+            />
           </div>
-        </div>
-      )}
+        )
+      })()}
+    </div>
+  )
+}
+
+function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
+  const [zoom, setZoom] = useState(1)
+  const [panX, setPanX] = useState(0)
+  const [panY, setPanY] = useState(0)
+  const letzterPinch = useRef(null)
+  const letzterPan = useRef(null)
+  const touchStart = useRef(null)
+
+  function pinchAbstand(touches) {
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  function onTouchStart(e) {
+    if (e.touches.length === 2) {
+      letzterPinch.current = { abstand: pinchAbstand(e.touches), zoom }
+      letzterPan.current = null
+      touchStart.current = null
+    } else if (e.touches.length === 1) {
+      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() }
+      if (zoom > 1) letzterPan.current = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY }
+    }
+  }
+
+  function onTouchMove(e) {
+    e.preventDefault()
+    if (e.touches.length === 2 && letzterPinch.current) {
+      const neuerZoom = Math.max(1, Math.min(5, letzterPinch.current.zoom * (pinchAbstand(e.touches) / letzterPinch.current.abstand)))
+      setZoom(neuerZoom)
+      if (neuerZoom === 1) { setPanX(0); setPanY(0) }
+    } else if (e.touches.length === 1 && letzterPan.current && zoom > 1) {
+      setPanX(e.touches[0].clientX - letzterPan.current.x)
+      setPanY(e.touches[0].clientY - letzterPan.current.y)
+      touchStart.current = null
+    }
+  }
+
+  function onTouchEnd(e) {
+    if (e.touches.length < 2) letzterPinch.current = null
+    if (e.touches.length < 1) {
+      letzterPan.current = null
+      if (touchStart.current && zoom === 1) {
+        const dx = e.changedTouches[0].clientX - touchStart.current.x
+        const dy = Math.abs(e.changedTouches[0].clientY - touchStart.current.y)
+        const dt = Date.now() - touchStart.current.time
+        if (Math.abs(dx) > 50 && dy < 60 && dt < 400) {
+          if (dx < 0 && onSwipeLeft) onSwipeLeft({ stopPropagation: () => {} })
+          if (dx > 0 && onSwipeRight) onSwipeRight({ stopPropagation: () => {} })
+        }
+      }
+      touchStart.current = null
+    }
+  }
+
+  function onDoubleClick() {
+    if (zoom > 1) { setZoom(1); setPanX(0); setPanY(0) }
+    else { setZoom(2.5) }
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onDoubleClick={onDoubleClick}
+    >
+      <div style={{
+        position: 'relative',
+        transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
+        transformOrigin: 'center',
+        transition: letzterPinch.current ? 'none' : 'transform 0.1s',
+        cursor: zoom > 1 ? 'grab' : 'default'
+      }}>
+        <img src={src} alt="Vollbild"
+          style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px', display: 'block', userSelect: 'none' }}
+          draggable={false}
+        />
+        {marker.map(r => (
+          <div key={r.id}
+            onClick={e => { e.stopPropagation(); onMarkerClick(r.id) }}
+            style={{
+              position: 'absolute',
+              left: `${r.marker_x}%`, top: `${r.marker_y}%`,
+              width: `${r.marker_width}%`, height: `${r.marker_height}%`,
+              border: `2px solid ${r.color}`, borderRadius: '6px',
+              background: `${r.color}22`, boxSizing: 'border-box', cursor: 'pointer'
+            }}
+          >
+            <div style={{
+              position: 'absolute', bottom: '100%', left: 0, marginBottom: '2px',
+              background: r.color, color: 'white', fontSize: '0.7rem', fontWeight: 'bold',
+              padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', pointerEvents: 'none'
+            }}>{r.setter_grade}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
