@@ -473,7 +473,7 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -487,7 +487,7 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
         cursor: zoom > 1 ? 'grab' : 'default'
       }}>
         <img src={src} alt="Vollbild"
-          style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px', display: 'block', userSelect: 'none' }}
+          style={{ maxWidth: '95vw', maxHeight: '85vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: '8px', display: 'block', userSelect: 'none' }}
           draggable={false}
         />
         {marker.map(r => (
