@@ -15,6 +15,11 @@ function WandplanEditor() {
   const [gespeichert, setGespeichert] = useState(false)
   const [fortschritt, setFortschritt] = useState('')
   const [zoom, setZoom] = useState(1)
+  const [neueRouteFormular, setNeueRouteFormular] = useState(null) // { x, y, width, height }
+  const [neueRouteName, setNeueRouteName] = useState('')
+  const [neueRouteGrad, setNeueRouteGrad] = useState('6A')
+  const [neueRouteFarbe, setNeueRouteFarbe] = useState('#FF4444')
+  const [neueRouteSpeichern, setNeueRouteSpeichern] = useState(false)
   const [panX, setPanX] = useState(0)
   const [panY, setPanY] = useState(0)
   const bildRef = useRef(null)
@@ -140,22 +145,67 @@ function WandplanEditor() {
   }
 
   function markerFertigstellen() {
-    if (!zieheMarker || !gewaehlteRoute) return
+    if (!zieheMarker) return
     if (zieheMarker.width < 2 || zieheMarker.height < 2) {
       setZieheMarker(null)
       return
     }
-    const route = routen.find(r => r.id === gewaehlteRoute)
-    const neuerMarker = {
-      routeId: gewaehlteRoute,
-      x: zieheMarker.x, y: zieheMarker.y,
-      width: zieheMarker.width, height: zieheMarker.height,
-      color: route?.color || '#ff6b00',
-      name: route?.name || ''
+
+    if (gewaehlteRoute) {
+      // Alter Workflow: bestehende Route zuordnen
+      setMarker(prev => {
+        const ohne = prev.filter(m => m.routeId !== gewaehlteRoute)
+        const route = routen.find(r => r.id === gewaehlteRoute)
+        return [...ohne, {
+          routeId: gewaehlteRoute,
+          x: zieheMarker.x, y: zieheMarker.y,
+          width: zieheMarker.width, height: zieheMarker.height,
+          color: route?.color || '#ff6b00', name: route?.name || ''
+        }]
+      })
+    } else {
+      // Neuer Workflow: Formular öffnen
+      setNeueRouteFormular({
+        x: zieheMarker.x, y: zieheMarker.y,
+        width: zieheMarker.width, height: zieheMarker.height
+      })
+      setNeueRouteName('')
+      setNeueRouteGrad('6A')
+      setNeueRouteFarbe('#FF4444')
     }
-    setMarker(prev => [...prev.filter(m => m.routeId !== gewaehlteRoute), neuerMarker])
     setZieheMarker(null)
-    setGewaehlteRoute(null)
+  }
+
+  async function neueRouteErstellen() {
+    if (!neueRouteName.trim()) return
+    setNeueRouteSpeichern(true)
+
+    // Route in DB erstellen
+    const { data: neueRoute, error } = await supabase.from('routes').insert({
+      name: neueRouteName.trim(),
+      setter_grade: neueRouteGrad,
+      color: neueRouteFarbe,
+      gym_id: gymId,
+      section_id: sektionId,
+      is_active: true,
+      marker_x: neueRouteFormular.x,
+      marker_y: neueRouteFormular.y,
+      marker_width: neueRouteFormular.width,
+      marker_height: neueRouteFormular.height
+    }).select().single()
+
+    if (!error && neueRoute) {
+      setRouten(prev => [...prev, neueRoute])
+      setMarker(prev => [...prev, {
+        routeId: neueRoute.id,
+        x: neueRouteFormular.x, y: neueRouteFormular.y,
+        width: neueRouteFormular.width, height: neueRouteFormular.height,
+        color: neueRouteFarbe, name: neueRouteName.trim()
+      }])
+    }
+
+    setNeueRouteFormular(null)
+    setNeueRouteSpeichern(false)
   }
 
   function markerLoeschen(routeId) {
@@ -240,6 +290,62 @@ function WandplanEditor() {
         </button>
       </div>
 
+      {/* Neue Route Formular Modal */}
+      {neueRouteFormular && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1rem'
+        }}>
+          <div style={{
+            background: '#111', border: '1px solid #2a2a2a',
+            borderRadius: '16px', padding: '1.5rem', width: '100%', maxWidth: '360px'
+          }}>
+            <h2 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem' }}>🧗 Neue Route</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <input
+                value={neueRouteName}
+                onChange={e => setNeueRouteName(e.target.value)}
+                placeholder="Routenname"
+                maxLength={50}
+                autoFocus
+                style={inputStyle}
+              />
+
+              <select value={neueRouteGrad} onChange={e => setNeueRouteGrad(e.target.value)} style={inputStyle}>
+                {['4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A'].map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {['#FF4444','#FFD700','#4CAF50','#2196F3','#9C27B0','#FF9800','#ffffff','#000000','#FF69B4','#00BCD4'].map(farbe => (
+                  <div key={farbe}
+                    onClick={() => setNeueRouteFarbe(farbe)}
+                    style={{
+                      width: '32px', height: '32px', borderRadius: '50%',
+                      background: farbe, cursor: 'pointer',
+                      border: neueRouteFarbe === farbe ? '3px solid white' : '3px solid transparent',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button className="btn" onClick={neueRouteErstellen} disabled={neueRouteSpeichern || !neueRouteName.trim()} style={{ flex: 1 }}>
+                  {neueRouteSpeichern ? '⏳' : '✅ Erstellen'}
+                </button>
+                <button className="btn btn-outline" onClick={() => setNeueRouteFormular(null)} style={{ flex: 1 }}>
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {fortschritt && (
         <div style={{
           background: 'rgba(255,107,0,0.1)', border: '1px solid rgba(255,107,0,0.3)',
@@ -255,8 +361,8 @@ function WandplanEditor() {
         borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem',
         fontSize: '0.85rem', color: '#aaa'
       }}>
-        📱 <strong style={{ color: '#ff6b00' }}>Mobile:</strong> Route antippen → mit Finger Rechteck ziehen<br />
-        🖥️ <strong style={{ color: '#ff6b00' }}>Desktop:</strong> Route auswählen → mit Maus Rechteck ziehen<br />
+        📱 <strong style={{ color: '#ff6b00' }}>Mobile:</strong> Rechteck auf der Wand ziehen → Route direkt erstellen<br />
+        🖥️ <strong style={{ color: '#ff6b00' }}>Desktop:</strong> Rechteck ziehen → Route direkt erstellen<br />
         🔍 <strong style={{ color: '#ff6b00' }}>Zoom:</strong> Pinch zum Zoomen oder + / − Buttons
       </div>
 
@@ -400,6 +506,12 @@ function WandplanEditor() {
       </div>
     </div>
   )
+}
+
+const inputStyle = {
+  padding: '0.75rem', borderRadius: '8px',
+  border: '1px solid #2a2a2a', background: '#1a1a1a',
+  color: 'white', fontSize: '1rem', width: '100%', boxSizing: 'border-box'
 }
 
 const zoomBtnStyle = {
