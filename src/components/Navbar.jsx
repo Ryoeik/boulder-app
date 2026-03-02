@@ -10,35 +10,57 @@ function Navbar() {
   const location = useLocation()
 
   useEffect(() => {
+    // Session beim Laden abrufen
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setNutzer(session?.user ?? null)
-      if (session?.user) {
-        const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', session.user.id).maybeSingle()
-        setProfil(data)
-      }
+      handleAuthChange(session)
     })
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      setNutzer(session?.user ?? null)
-      if (session?.user) {
-        const { data } = await supabase.from('profiles').select('username, avatar_url').eq('id', session.user.id).maybeSingle()
+
+    // Auf Auth-Änderungen hören
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      handleAuthChange(session)
+    })
+
+    async function handleAuthChange(session) {
+      const user = session?.user ?? null
+      setNutzer(user)
+      
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle()
         setProfil(data)
       } else {
         setProfil(null)
       }
-    })
+    }
 
+    // Klick-Auserhalb-Logik
     function handleClickOutside(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setZeigeMenu(false)
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+
+    // CLEANUP: Verhindert den "Lock not released" Error!
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function ausloggen() {
-    await supabase.auth.signOut()
-    setZeigeMenu(false)
+    try {
+      await supabase.auth.signOut()
+      setZeigeMenu(false)
+      // Leitet den Nutzer zur Startseite und erzwingt einen kompletten Reload
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Fehler beim Ausloggen:', error.message)
+    }
   }
 
   const aktiv = (pfad) => location.pathname === pfad
@@ -54,11 +76,11 @@ function Navbar() {
         padding: '0 1rem', height: '52px'
       }}>
         <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <span style={{ fontSize: '1.3rem' }}>🪨</span>
+          <span style={{ fontSize: '1.3rem' }}>🗿</span>
           <span style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '1rem' }}>Toter Boulder</span>
         </Link>
 
-        {/* Menü */}
+        {/* Menü oben rechts */}
         <div ref={menuRef} style={{ position: 'relative' }}>
           <button onClick={() => setZeigeMenu(!zeigeMenu)} style={{
             background: 'transparent', border: 'none',
@@ -88,20 +110,18 @@ function Navbar() {
               boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
               zIndex: 9999, overflow: 'hidden'
             }}>
-              {nutzer ? (
+              {nutzer && (
                 <>
-                  {profil?.username && (
-                    <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1a1a1a' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#555' }}>Eingeloggt als</div>
-                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem' }}>{profil.username}</div>
+                  <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1a1a1a' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#555' }}>Eingeloggt als</div>
+                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        {profil?.username || nutzer.email}
                     </div>
-                  )}
-                  <MenuItem to="/profil" onClick={() => setZeigeMenu(false)}>👤 Profil</MenuItem>
+                  </div>
                   <div onClick={ausloggen} style={menuItemStyle}>🚪 Ausloggen</div>
                 </>
-              ) : (
-                <MenuItem to="/login" onClick={() => setZeigeMenu(false)}>🔑 Login</MenuItem>
               )}
+              {/* Login & Profil hier entfernt, da sie unten in der Leiste sind */}
               <MenuItem to="/datenschutz" onClick={() => setZeigeMenu(false)}>🔒 Datenschutz</MenuItem>
               <MenuItem to="/hallen" onClick={() => setZeigeMenu(false)}>💻 GitHub</MenuItem>
             </div>
@@ -109,7 +129,7 @@ function Navbar() {
         </div>
       </nav>
 
-      {/* Bottom Nav */}
+      {/* Bottom Nav Leiste */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(12px)',
@@ -125,12 +145,13 @@ function Navbar() {
         }
       </div>
 
-      {/* Spacer für Bottom Nav */}
+      {/* Platzhalter, damit Content nicht hinter der Bottom-Leiste verschwindet */}
       <div style={{ height: '60px' }} />
     </>
   )
 }
 
+// Untergeordnete Komponenten für sauberen Code
 function BottomNavItem({ to, label, emoji, aktiv }) {
   return (
     <Link to={to} style={{
@@ -157,9 +178,12 @@ function MenuItem({ to, onClick, children }) {
 }
 
 const menuItemStyle = {
-  display: 'block', padding: '0.75rem 1rem',
-  color: '#aaa', textDecoration: 'none',
-  fontSize: '0.9rem', borderBottom: '1px solid #1a1a1a',
+  display: 'block', 
+  padding: '0.75rem 1rem',
+  color: '#aaa', 
+  textDecoration: 'none',
+  fontSize: '0.9rem', 
+  borderBottom: '1px solid #1a1a1a',
   cursor: 'pointer'
 }
 

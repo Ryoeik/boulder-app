@@ -30,7 +30,7 @@ function Disclaimer() {
         padding: '2rem', maxHeight: '90vh', overflowY: 'auto'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: '3rem' }}>🧗</div>
+          <div style={{ fontSize: '3rem' }}>🗿</div>
           <h1 style={{ fontSize: '1.5rem', marginTop: '0.5rem' }}>BoulderApp</h1>
         </div>
 
