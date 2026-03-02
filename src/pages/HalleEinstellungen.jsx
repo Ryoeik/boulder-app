@@ -53,6 +53,25 @@ function HalleEinstellungen() {
   }, [gymId])
 
   const istAdmin = meineRolle === 'admin'
+  const [bildLaden, setBildLaden] = useState(false)
+
+  async function hallenbildHochladen(e) {
+    const datei = e.target.files[0]
+    if (!datei) return
+    if (datei.size > 5 * 1024 * 1024) { setFehler('Bild max. 5 MB'); return }
+    setBildLaden(true)
+    const endung = datei.name.split('.').pop()
+    const pfad = `${gymId}/logo.${endung}`
+    await supabase.storage.from('avatars').remove([pfad])
+    const { error } = await supabase.storage.from('avatars').upload(pfad, datei, { upsert: true })
+    if (error) { setFehler('Upload fehlgeschlagen'); setBildLaden(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(pfad)
+    await supabase.from('gyms').update({ image_url: publicUrl }).eq('id', gymId)
+    setHalle(prev => ({ ...prev, image_url: publicUrl }))
+    setErfolg('Bild gespeichert!')
+    setTimeout(() => setErfolg(''), 2000)
+    setBildLaden(false)
+  }
 
   async function rolleAendern(userId, neueRolle) {
     const { error } = await supabase
@@ -95,11 +114,40 @@ function HalleEinstellungen() {
         ← Zurück zur Halle
       </Link>
 
-      <h1 style={{ marginTop: '0.5rem' }}>⚙️ Einstellungen</h1>
+      <h1 style={{ marginTop: '0.5rem' }}>Einstellungen</h1>
       <p style={{ marginBottom: '2rem' }}>
         für <strong style={{ color: '#ff6b00' }}>{halle?.name}</strong>
         {istSuperAdmin && <span style={{ color: '#ff6b00', fontSize: '0.8rem', marginLeft: '0.5rem' }}>👑 Super Admin</span>}
       </p>
+
+      {/* Hallenbild */}
+      {istAdmin && (
+        <div className="card" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{
+            width: '80px', height: '80px', borderRadius: '12px',
+            background: '#1a1a1a', border: '1px solid #2a2a2a',
+            overflow: 'hidden', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: '2rem', flexShrink: 0
+          }}>
+            {halle?.image_url
+              ? <img src={halle.image_url} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : '🏟️'}
+          </div>
+          <div>
+            <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+              Hallen-Logo oder Bild (max. 5 MB)
+            </p>
+            <label style={{
+              background: 'rgba(255,107,0,0.1)', border: '1px solid #ff6b00',
+              color: '#ff6b00', padding: '0.5rem 1rem', borderRadius: '8px',
+              cursor: 'pointer', fontSize: '0.9rem'
+            }}>
+              {bildLaden ? '⏳ Lädt...' : '📷 Bild hochladen'}
+              <input type="file" accept="image/*" onChange={hallenbildHochladen} style={{ display: 'none' }} />
+            </label>
+          </div>
+        </div>
+      )}
 
       {fehler && <p style={{ color: '#ff4444', marginBottom: '1rem' }}>{fehler}</p>}
       {erfolg && <p style={{ color: '#00c851', marginBottom: '1rem' }}>✅ {erfolg}</p>}
