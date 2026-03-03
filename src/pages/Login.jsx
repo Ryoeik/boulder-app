@@ -17,15 +17,10 @@ function Login() {
     setLaden(true)
     setNachricht('')
 
-    // Prüfen ob E-Mail bereits registriert ist
-    const { data: bereitsRegistriert } = await supabase
-      .from('registration_codes')
-      .select('id')
-      .eq('email', email)
-      .eq('used', true)
-      .maybeSingle() // ← maybeSingle statt single!
+    const { data: existiert } = await supabase
+      .rpc('check_email_exists', { check_email: email })
 
-    if (bereitsRegistriert) {
+    if (existiert) {
       setNachricht('Fehler: Diese E-Mail ist bereits registriert. Bitte einloggen.')
       setLaden(false)
       return
