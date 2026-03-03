@@ -113,7 +113,7 @@ function HallenProfil() {
       )}
 
       {/* Profil Header */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.6rem', marginTop: '1rem', marginBottom: '2rem' }}>
         <div style={{
           width: '90px', height: '90px', borderRadius: '50%',
           background: profil?.avatar_url ? 'transparent' : '#ff6b00',
@@ -125,7 +125,7 @@ function HallenProfil() {
             : '🧗'}
         </div>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ width: '100%' }}>
           <h1 style={{ margin: '0 0 0.3rem 0', fontSize: '1.5rem' }}>{anzeigeName}</h1>
 
           {/* Level-Badge – eigene Zeile für Mobil */}
@@ -203,20 +203,21 @@ function HallenProfil() {
                   </div>
                 ))}
               </div>
-              <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '140px', pointerEvents: 'none' }}>
+              <svg viewBox={`0 0 ${monate.length * 28} 140`} preserveAspectRatio="none"
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '140px', pointerEvents: 'none' }}>
                 <polyline
-                  fill="none" stroke="#44ccff" strokeWidth="1.5" strokeDasharray="3,2"
+                  fill="none" stroke="#ff6b00" strokeWidth="1.5" strokeDasharray="3,2"
                   points={monate.map(({ anzahl }, i) => {
-                    const x = (i / (monate.length - 1)) * 100
+                    const x = i * 28 + 14
                     const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
-                    return `${x}%,${y}`
+                    return `${x},${y}`
                   }).join(' ')}
                 />
                 {monate.map(({ anzahl }, i) => {
                   if (anzahl === 0) return null
-                  const x = (i / (monate.length - 1)) * 100
+                  const x = i * 28 + 14
                   const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
-                  return <circle key={i} cx={`${x}%`} cy={y} r="3" fill="#44ccff" stroke="#111" strokeWidth="1.5" />
+                  return <circle key={i} cx={x} cy={y} r="3" fill="#ff6b00" stroke="#111" strokeWidth="1.5" />
                 })}
               </svg>
             </div>

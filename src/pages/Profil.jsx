@@ -60,6 +60,10 @@ function Profil() {
         ;(routenDaten || []).forEach(r => { routenMap[r.id] = r })
         setRouten(routenMap)
 
+        // Nur Ticks behalten deren Route noch existiert
+        const aktiveTicks = alleSends.filter(t => routenMap[t.route_id])
+        setSends(aktiveTicks)
+
         const gymZaehler = {}
         alleSends.forEach(tick => {
           const route = routenMap[tick.route_id]
@@ -338,20 +342,21 @@ function Profil() {
                   </div>
                 ))}
               </div>
-              <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '140px', pointerEvents: 'none' }}>
+              <svg viewBox={`0 0 ${monate.length * 28} 140`} preserveAspectRatio="none"
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '140px', pointerEvents: 'none' }}>
                 <polyline
-                  fill="none" stroke="#44ccff" strokeWidth="1.5" strokeDasharray="3,2"
+                  fill="none" stroke="#ff6b00" strokeWidth="1.5" strokeDasharray="3,2"
                   points={monate.map(({ anzahl }, i) => {
-                    const x = (i / (monate.length - 1)) * 100
+                    const x = i * 28 + 14
                     const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
-                    return `${x}%,${y}`
+                    return `${x},${y}`
                   }).join(' ')}
                 />
                 {monate.map(({ anzahl }, i) => {
                   if (anzahl === 0) return null
-                  const x = (i / (monate.length - 1)) * 100
+                  const x = i * 28 + 14
                   const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
-                  return <circle key={i} cx={`${x}%`} cy={y} r="3" fill="#44ccff" stroke="#111" strokeWidth="1.5" />
+                  return <circle key={i} cx={x} cy={y} r="3" fill="#ff6b00" stroke="#111" strokeWidth="1.5" />
                 })}
               </svg>
             </div>

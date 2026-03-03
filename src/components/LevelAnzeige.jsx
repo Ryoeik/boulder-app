@@ -57,10 +57,10 @@ function LevelAnzeige({ xp, titel = 'Climber Level', kompakt = false }) {
         <div style={{
           height: '100%',
           width: `${fortschritt}%`,
-          background: `linear-gradient(to right, ${farbe}cc, ${farbe})`,
+          background: `linear-gradient(to right, #ff6b00cc, #ff6b00)`,
           borderRadius: '6px',
           transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: `0 0 8px ${farbe}55`
+          boxShadow: `0 0 8px #ff6b0055`
         }} />
       </div>
 
