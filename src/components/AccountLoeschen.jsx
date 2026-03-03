@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
@@ -10,6 +10,68 @@ function AccountLoeschen({ nutzer }) {
   const [bestaetigung, setBestaetigung] = useState('')
   const [laden, setLaden] = useState(false)
   const [fehler, setFehler] = useState('')
+
+  // Admin-Hallen mit Sektionsbildern
+  const [adminHallenMitBildern, setAdminHallenMitBildern] = useState([])
+  const [hallenGeladen, setHallenGeladen] = useState(false)
+
+  useEffect(() => {
+    async function adminHallenPruefen() {
+      if (!nutzer?.id) return
+
+      // Hallen wo Nutzer Admin ist
+      const { data: adminMitgliedschaften } = await supabase
+        .from('gym_members')
+        .select('gym_id')
+        .eq('user_id', nutzer.id)
+        .eq('role', 'admin')
+
+      if (!adminMitgliedschaften?.length) {
+        setHallenGeladen(true)
+        return
+      }
+
+      const gymIds = adminMitgliedschaften.map(m => m.gym_id)
+
+      // Sektionen mit Bildern in diesen Hallen
+      const { data: sektionenMitBildern } = await supabase
+        .from('sections')
+        .select('gym_id, name, image_url')
+        .in('gym_id', gymIds)
+        .not('image_url', 'is', null)
+
+      if (!sektionenMitBildern?.length) {
+        setHallenGeladen(true)
+        return
+      }
+
+      // Hallennamen laden
+      const { data: hallenData } = await supabase
+        .from('gyms')
+        .select('id, name')
+        .in('id', gymIds)
+
+      // Gruppieren nach Halle
+      const gruppiertNachHalle = gymIds.map(gymId => {
+        const halle = hallenData?.find(h => h.id === gymId)
+        const bilder = sektionenMitBildern.filter(s => s.gym_id === gymId)
+        return bilder.length > 0 ? { gymId, halleName: halle?.name || gymId, anzahlBilder: bilder.length } : null
+      }).filter(Boolean)
+
+      setAdminHallenMitBildern(gruppiertNachHalle)
+      setHallenGeladen(true)
+    }
+
+    adminHallenPruefen()
+  }, [nutzer?.id])
+
+  function modalOeffnen() {
+    setZeigeModal(true)
+    setSchritt(adminHallenMitBildern.length > 0 ? 1 : 2)
+    setBilderBehalten(adminHallenMitBildern.length > 0 ? null : false)
+    setBestaetigung('')
+    setFehler('')
+  }
 
   async function accountLoeschen() {
     if (bestaetigung !== 'LÖSCHEN') {
@@ -30,25 +92,40 @@ function AccountLoeschen({ nutzer }) {
         ])
       }
 
-      // 2. Routen/Sektionsbilder löschen falls gewünscht
-      if (!bilderBehalten) {
-        // Alle Routen des Nutzers finden wo er Bilder hochgeladen hat
-        const { data: kommentare } = await supabase
-          .from('comments')
-          .select('video_url')
-          .eq('user_id', nutzer.id)
-          .not('video_url', 'is', null)
+      // 2. Beta-Videos löschen
+      const { data: kommentare } = await supabase
+        .from('comments')
+        .select('video_url')
+        .eq('user_id', nutzer.id)
+        .not('video_url', 'is', null)
 
-        // Videos löschen
-        for (const k of (kommentare || [])) {
-          if (k.video_url) {
-            const dateiName = k.video_url.split('/').pop()
-            await supabase.storage.from('beta-videos').remove([dateiName])
+      for (const k of (kommentare || [])) {
+        if (k.video_url) {
+          const dateiName = k.video_url.split('/').pop()
+          await supabase.storage.from('beta-videos').remove([dateiName])
+        }
+      }
+
+      // 3. Sektionsbilder löschen falls gewünscht
+      if (!bilderBehalten && adminHallenMitBildern.length > 0) {
+        const gymIds = adminHallenMitBildern.map(h => h.gymId)
+        const { data: sektionen } = await supabase
+          .from('sections')
+          .select('image_url')
+          .in('gym_id', gymIds)
+          .not('image_url', 'is', null)
+
+        for (const s of (sektionen || [])) {
+          if (s.image_url) {
+            // Pfad aus URL extrahieren
+            const url = new URL(s.image_url)
+            const pfad = url.pathname.split('/route-images/')[1]
+            if (pfad) await supabase.storage.from('route-images').remove([pfad])
           }
         }
       }
 
-      // 3. Datenbank-Funktion aufrufen
+      // 4. RPC aufrufen (Admin-Transfer + DB-Einträge löschen)
       const { error } = await supabase.rpc('delete_user_account', {
         user_id: nutzer.id,
         bilder_loeschen: !bilderBehalten
@@ -60,7 +137,7 @@ function AccountLoeschen({ nutzer }) {
         return
       }
 
-      // 4. Ausloggen
+      // 5. Ausloggen
       await supabase.auth.signOut()
       navigate('/')
 
@@ -70,9 +147,10 @@ function AccountLoeschen({ nutzer }) {
     }
   }
 
+  const hatBilderWarnung = adminHallenMitBildern.length > 0
+
   return (
     <>
-      {/* Button */}
       <div style={{
         marginTop: '2rem', marginBottom: '3rem',
         padding: '1.5rem', borderRadius: '12px',
@@ -84,18 +162,19 @@ function AccountLoeschen({ nutzer }) {
           Dein Account, Profil, Ticks, Kommentare und Bewertungen werden unwiderruflich gelöscht.
         </p>
         <button
-          onClick={() => { setZeigeModal(true); setSchritt(1) }}
+          onClick={modalOeffnen}
+          disabled={!hallenGeladen}
           style={{
             background: 'rgba(255,68,68,0.1)', border: '1px solid #ff4444',
             color: '#ff4444', padding: '0.75rem 1.5rem',
-            borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
+            borderRadius: '8px', cursor: hallenGeladen ? 'pointer' : 'not-allowed',
+            fontWeight: 'bold', opacity: hallenGeladen ? 1 : 0.6
           }}
         >
           🗑️ Account löschen
         </button>
       </div>
 
-      {/* Modal */}
       {zeigeModal && (
         <div
           onClick={() => !laden && setZeigeModal(false)}
@@ -126,12 +205,39 @@ function AccountLoeschen({ nutzer }) {
               )}
             </div>
 
-            {/* Schritt 1: Bilder */}
-            {schritt === 1 && (
+            {/* Schrittanzeige */}
+            {hatBilderWarnung && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                {[1, 2].map(s => (
+                  <div key={s} style={{
+                    flex: 1, height: '3px', borderRadius: '2px',
+                    background: schritt >= s ? '#ff4444' : '#2a2a2a'
+                  }} />
+                ))}
+              </div>
+            )}
+
+            {/* Schritt 1: Bilder-Warnung (nur wenn Admin mit Sektionsbildern) */}
+            {schritt === 1 && hatBilderWarnung && (
               <div>
-                <p style={{ color: '#aaa', marginBottom: '1.5rem', lineHeight: '1.6' }}>
-                  Du hast möglicherweise Bilder für Routen oder Sektionen hochgeladen.
-                  Was soll damit passieren?
+                <div style={{
+                  background: 'rgba(255,107,0,0.08)', border: '1px solid rgba(255,107,0,0.3)',
+                  borderRadius: '10px', padding: '1rem', marginBottom: '1.5rem'
+                }}>
+                  <p style={{ color: '#ff6b00', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                    📷 Du bist Admin in {adminHallenMitBildern.length === 1 ? 'einer Halle' : `${adminHallenMitBildern.length} Hallen`} mit Sektionsbildern
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {adminHallenMitBildern.map(h => (
+                      <p key={h.gymId} style={{ color: '#aaa', fontSize: '0.85rem', margin: 0 }}>
+                        • <strong style={{ color: 'white' }}>{h.halleName}</strong> — {h.anzahlBilder} Sektionsbild{h.anzahlBilder !== 1 ? 'er' : ''}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+
+                <p style={{ color: '#aaa', marginBottom: '1rem', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                  Was soll mit den Sektionsbildern passieren?
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
@@ -144,10 +250,10 @@ function AccountLoeschen({ nutzer }) {
                     }}
                   >
                     <strong style={{ color: bilderBehalten === false ? '#ff4444' : 'white' }}>
-                      🗑️ Alle Bilder löschen
+                      🗑️ Alles löschen
                     </strong>
-                    <p style={{ color: '#aaa', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                      Alle hochgeladenen Bilder werden von den Servern gelöscht.
+                    <p style={{ color: '#aaa', fontSize: '0.85rem', marginTop: '0.25rem', margin: '0.25rem 0 0' }}>
+                      Account + alle Sektionsbilder werden unwiderruflich gelöscht.
                     </p>
                   </div>
 
@@ -160,21 +266,16 @@ function AccountLoeschen({ nutzer }) {
                     }}
                   >
                     <strong style={{ color: bilderBehalten === true ? '#ff6b00' : 'white' }}>
-                      📷 Bilder für Routen behalten
+                      📷 Sektionsbilder behalten
                     </strong>
-                    <p style={{ color: '#aaa', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                      Bilder von Routen/Sektionen bleiben auf den Servern und sind weiterhin sichtbar.
-                      Dein Profilbild wird trotzdem gelöscht.
+                    <p style={{ color: '#aaa', fontSize: '0.85rem', marginTop: '0.25rem', margin: '0.25rem 0 0' }}>
+                      Dein Account wird gelöscht, die Sektionsbilder bleiben für die Hallen erhalten.
                     </p>
                   </div>
                 </div>
 
                 {bilderBehalten !== null && (
-                  <button
-                    className="btn"
-                    onClick={() => setSchritt(2)}
-                    style={{ width: '100%', padding: '1rem' }}
-                  >
+                  <button className="btn" onClick={() => setSchritt(2)} style={{ width: '100%', padding: '1rem' }}>
                     Weiter →
                   </button>
                 )}
@@ -191,10 +292,11 @@ function AccountLoeschen({ nutzer }) {
                   <p style={{ color: '#ff4444', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                     ⚠️ Diese Aktion kann nicht rückgängig gemacht werden!
                   </p>
-                  <p style={{ color: '#aaa', fontSize: '0.85rem', lineHeight: '1.6' }}>
+                  <p style={{ color: '#aaa', fontSize: '0.85rem', lineHeight: '1.6', margin: 0 }}>
                     Folgendes wird gelöscht: Dein Profil, alle Ticks, Kommentare, Bewertungen und dein Profilbild.
-                    {!bilderBehalten && ' Zusätzlich alle hochgeladenen Bilder.'}
-                    {' '}Hallen in denen du Admin bist bleiben erhalten.
+                    {!bilderBehalten && hatBilderWarnung && ' Zusätzlich alle Sektionsbilder deiner Admin-Hallen.'}
+                    {' '}Hallen ohne andere Mitglieder werden ebenfalls gelöscht.
+                    {' '}Dein Admin-Status wird automatisch an das älteste Mitglied übertragen.
                   </p>
                 </div>
 
@@ -217,24 +319,24 @@ function AccountLoeschen({ nutzer }) {
                 {fehler && <p style={{ color: '#ff4444', marginBottom: '1rem' }}>{fehler}</p>}
 
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button
-                    onClick={() => setSchritt(1)}
-                    style={{
-                      flex: 1, background: 'transparent', border: '1px solid #444',
-                      color: '#aaa', padding: '0.75rem', borderRadius: '8px', cursor: 'pointer'
-                    }}
-                  >
-                    ← Zurück
-                  </button>
+                  {hatBilderWarnung && (
+                    <button
+                      onClick={() => setSchritt(1)}
+                      style={{
+                        flex: 1, background: 'transparent', border: '1px solid #444',
+                        color: '#aaa', padding: '0.75rem', borderRadius: '8px', cursor: 'pointer'
+                      }}
+                    >← Zurück</button>
+                  )}
                   <button
                     onClick={accountLoeschen}
                     disabled={laden || bestaetigung !== 'LÖSCHEN'}
                     style={{
-                      flex: 1, background: '#ff4444', border: 'none',
+                      flex: 2, background: '#ff4444', border: 'none',
                       color: 'white', padding: '0.75rem', borderRadius: '8px',
-                      cursor: bestaetigung === 'LÖSCHEN' ? 'pointer' : 'not-allowed',
+                      cursor: bestaetigung === 'LÖSCHEN' && !laden ? 'pointer' : 'not-allowed',
                       fontWeight: 'bold',
-                      opacity: bestaetigung === 'LÖSCHEN' ? 1 : 0.5
+                      opacity: bestaetigung === 'LÖSCHEN' && !laden ? 1 : 0.5
                     }}
                   >
                     {laden ? 'Wird gelöscht...' : '🗑️ Account endgültig löschen'}

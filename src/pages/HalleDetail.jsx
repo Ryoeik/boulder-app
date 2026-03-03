@@ -13,7 +13,7 @@ function HalleDetail() {
   const [sektionen, setSektionen] = useState([])
   const [laden, setLaden] = useState(true)
   const [bewertungen, setBewertungen] = useState({})
-  const [kommunityGrade, setKommunityGrade] = useState({}) // routeId -> kommunityGrad
+  const [kommunityGrade, setKommunityGrade] = useState({})
   const [nutzerRolle, setNutzerRolle] = useState(null)
   const [nutzerId, setNutzerId] = useState(null)
   const [vollbildBild, setVollbildBild] = useState(null)
@@ -29,6 +29,9 @@ function HalleDetail() {
 
   const grade = ['4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A']
 
+  // Sektionen alphabetisch sortiert (für Karussell & Filter)
+  const sortierteSektionen = [...sektionen].sort((a, b) => a.name.localeCompare(b.name))
+
   useEffect(() => {
     async function datenLaden() {
       const { data: halleData } = await supabase
@@ -37,6 +40,7 @@ function HalleDetail() {
 
       const { data: sektionenData } = await supabase
         .from('sections').select('*').eq('gym_id', id)
+        .order('name', { ascending: true })
       setSektionen(sektionenData || [])
 
       const { data: routenData } = await supabase
@@ -45,24 +49,20 @@ function HalleDetail() {
 
       const routeIds = (routenData || []).map(r => r.id)
 
-      // Sterne-Bewertungen
       const { data: ratingsData } = await supabase
         .from('route_ratings').select('route_id, stars, community_grade')
         .in('route_id', routeIds)
 
       const bewertungsMap = {}
       const counts = {}
-      // community grades pro Route sammeln
-      const communityGradeMap = {} // routeId -> [grade, grade, ...]
+      const communityGradeMap = {}
 
       ;(ratingsData || []).forEach(r => {
-        // Sterne
         if (r.stars) {
           if (!bewertungsMap[r.route_id]) { bewertungsMap[r.route_id] = 0; counts[r.route_id] = 0 }
           bewertungsMap[r.route_id] += r.stars
           counts[r.route_id]++
         }
-        // Community-Grade sammeln
         if (r.community_grade) {
           if (!communityGradeMap[r.route_id]) communityGradeMap[r.route_id] = []
           communityGradeMap[r.route_id].push(r.community_grade)
@@ -74,7 +74,6 @@ function HalleDetail() {
       })
       setBewertungen(bewertungsMap)
 
-      // Community-Grad pro Route berechnen
       const kGradeMap = {}
       ;(routenData || []).forEach(route => {
         const grades = communityGradeMap[route.id] || []
@@ -87,7 +86,6 @@ function HalleDetail() {
       if (session?.user) {
         setNutzerId(session.user.id)
 
-        // SuperAdmin prüfen
         const { data: profil } = await supabase
           .from('profiles').select('is_app_admin').eq('id', session.user.id).single()
         const superAdmin = profil?.is_app_admin === true
@@ -97,18 +95,11 @@ function HalleDetail() {
           .eq('gym_id', id).eq('user_id', session.user.id).maybeSingle()
 
         if (superAdmin && !mitglied) {
-          // SuperAdmin noch kein Mitglied → direkt als Admin beitreten
-          await supabase.from('gym_members').insert({
-            gym_id: id, user_id: session.user.id, role: 'admin'
-          })
-          setNutzerRolle('admin')
-          setMitgliedschaft({ role: 'admin' })
+          await supabase.from('gym_members').insert({ gym_id: id, user_id: session.user.id, role: 'admin' })
+          setNutzerRolle('admin'); setMitgliedschaft({ role: 'admin' })
         } else if (superAdmin && mitglied?.role !== 'admin') {
-          // SuperAdmin ist Mitglied aber nicht Admin → hochstufen
-          await supabase.from('gym_members').update({ role: 'admin' })
-            .eq('gym_id', id).eq('user_id', session.user.id)
-          setNutzerRolle('admin')
-          setMitgliedschaft({ role: 'admin' })
+          await supabase.from('gym_members').update({ role: 'admin' }).eq('gym_id', id).eq('user_id', session.user.id)
+          setNutzerRolle('admin'); setMitgliedschaft({ role: 'admin' })
         } else {
           setNutzerRolle(mitglied?.role || null)
           setMitgliedschaft(mitglied || null)
@@ -120,21 +111,33 @@ function HalleDetail() {
     datenLaden()
   }, [id])
 
+  // Karussell aktualisieren wenn Supabase Realtime eine Änderung meldet
+  useEffect(() => {
+    const channel = supabase
+      .channel('sektionen-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sections', filter: `gym_id=eq.${id}` }, payload => {
+        if (payload.eventType === 'INSERT') {
+          setSektionen(prev => [...prev, payload.new].sort((a, b) => a.name.localeCompare(b.name)))
+        } else if (payload.eventType === 'UPDATE') {
+          setSektionen(prev => prev.map(s => s.id === payload.new.id ? payload.new : s).sort((a, b) => a.name.localeCompare(b.name)))
+        } else if (payload.eventType === 'DELETE') {
+          setSektionen(prev => prev.filter(s => s.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [id])
+
   const istAdmin = nutzerRolle === 'admin' || nutzerRolle === 'moderator'
 
   async function halleBetreten() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { navigate('/login'); return }
     setBeitretenLaden(true)
-
-    // SuperAdmin tritt immer als Admin bei
     const { data: profil } = await supabase
       .from('profiles').select('is_app_admin').eq('id', session.user.id).single()
     const rolle = profil?.is_app_admin ? 'admin' : 'member'
-
-    const { error } = await supabase.from('gym_members').insert({
-      gym_id: id, user_id: session.user.id, role: rolle
-    })
+    const { error } = await supabase.from('gym_members').insert({ gym_id: id, user_id: session.user.id, role: rolle })
     if (!error) { setMitgliedschaft({ role: rolle }); setNutzerRolle(rolle) }
     setBeitretenLaden(false)
   }
@@ -142,13 +145,12 @@ function HalleDetail() {
   async function halleVerlassen() {
     const { data: { session } } = await supabase.auth.getSession()
     setBeitretenLaden(true)
-    await supabase.from('gym_members').delete()
-      .eq('gym_id', id).eq('user_id', session.user.id)
+    await supabase.from('gym_members').delete().eq('gym_id', id).eq('user_id', session.user.id)
     setMitgliedschaft(null); setNutzerRolle(null)
     setBeitretenLaden(false)
   }
 
-  const eindeutigeSektionen = sektionen.reduce((acc, s) => {
+  const eindeutigeSektionen = sortierteSektionen.reduce((acc, s) => {
     if (!acc.find(x => x.name === s.name)) acc.push(s)
     return acc
   }, [])
@@ -181,7 +183,6 @@ function HalleDetail() {
       </div>
       <p>📍 {halle.city}</p>
 
-      {/* Buttons */}
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
         {nutzerId && (
           <Link to={`/halle/${id}/nutzer/${nutzerId}`} style={iconBtnStyle}>
@@ -218,8 +219,8 @@ function HalleDetail() {
         )}
       </div>
 
-      {/* Sektionen Karussell */}
-      {sektionen.filter(s => s.image_url).length > 0 && (
+      {/* Sektionen Karussell – alphabetisch sortiert, reagiert auf Änderungen */}
+      {sortierteSektionen.filter(s => s.image_url).length > 0 && (
         <div style={{ marginTop: '1.5rem' }}>
           <h2 style={{ marginBottom: '1rem' }}>🏔️ Wände</h2>
           <div style={{
@@ -227,7 +228,7 @@ function HalleDetail() {
             overflowX: 'auto', paddingBottom: '1rem',
             scrollbarWidth: 'thin', scrollbarColor: '#ff6b00 #2a2a2a'
           }}>
-            {sektionen.filter(s => s.image_url).map(sektion => (
+            {sortierteSektionen.filter(s => s.image_url).map(sektion => (
               <div key={sektion.id}
                 onClick={() => setFilterSektion(sektion.name)}
                 style={{
@@ -298,7 +299,6 @@ function HalleDetail() {
         >✕</button>
       </div>
 
-      {/* Routen */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1.5rem 0 0.75rem' }}>
         <span style={{ color: '#555', fontSize: '0.85rem' }}>{gefilterteRouten.length} Routen</span>
       </div>
@@ -317,7 +317,6 @@ function HalleDetail() {
           {gefilterteRouten.map(route => {
             const sektion = sektionen.find(s => s.id === route.section_id)
             const kGrad = kommunityGrade[route.id]
-            // Community-Grad nur zeigen wenn er vom Setter-Grad abweicht
             const zeigeKGrad = kGrad && kGrad !== route.setter_grade
             return (
               <div key={route.id}
@@ -339,35 +338,24 @@ function HalleDetail() {
                     backgroundColor: route.color, flexShrink: 0, minHeight: '40px'
                   }} />
                 )}
-
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: route.color, flexShrink: 0 }} />
                     <strong style={{ color: 'white', fontSize: '0.95rem' }}>{farbName(route.color)}</strong>
-
-                    {/* Setter-Grad */}
                     <span style={{
                       background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
                       padding: '0.15rem 0.5rem', borderRadius: '20px',
                       fontSize: '0.85rem', fontWeight: 'bold', flexShrink: 0
-                    }}>
-                      {route.setter_grade}
-                    </span>
-
-                    {/* Community-Grad (nur wenn abweichend) */}
+                    }}>{route.setter_grade}</span>
                     {zeigeKGrad && (
                       <span style={{
                         background: 'rgba(255,107,0,0.05)', color: '#aaa',
                         padding: '0.15rem 0.5rem', borderRadius: '20px',
                         fontSize: '0.75rem', flexShrink: 0,
                         border: '1px solid rgba(255,107,0,0.2)'
-                      }}>
-                        👥 {kGrad}
-                      </span>
+                      }}>👥 {kGrad}</span>
                     )}
                   </div>
-
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {sektion && <span style={{ fontSize: '0.8rem', color: '#666' }}>📍 {sektion.name}</span>}
                     {bewertungen[route.id] && (
@@ -375,8 +363,6 @@ function HalleDetail() {
                     )}
                   </div>
                 </div>
-
-                {/* Tick Button */}
                 <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>
                   <TickButton routeId={route.id} setterGrade={route.setter_grade} />
                 </div>
@@ -388,7 +374,7 @@ function HalleDetail() {
 
       {/* Vollbild Viewer */}
       {vollbildBild && (() => {
-        const sektionenMitBild = sektionen.filter(s => s.image_url)
+        const sektionenMitBild = sortierteSektionen.filter(s => s.image_url)
         const aktuellerIndex = sektionenMitBild.findIndex(s => s.image_url === vollbildBild)
 
         function vorherigesBild(e) {
@@ -428,7 +414,6 @@ function HalleDetail() {
               color: 'white', borderRadius: '50%', width: '40px', height: '40px',
               cursor: 'pointer', fontSize: '1.2rem', zIndex: 10
             }}>✕</button>
-
             {sektionenMitBild.length > 1 && (
               <>
                 <button onClick={vorherigesBild} style={{
@@ -445,7 +430,6 @@ function HalleDetail() {
                 }}>›</button>
               </>
             )}
-
             {sektionenMitBild.length > 1 && (
               <div style={{
                 position: 'absolute', bottom: '1rem', left: '50%', transform: 'translateX(-50%)',
@@ -459,7 +443,6 @@ function HalleDetail() {
                 ))}
               </div>
             )}
-
             <ZoomBild
               src={vollbildBild}
               marker={vollbildMarker}
@@ -504,10 +487,7 @@ function ZoomBild({ src, marker, onMarkerClick, onSwipeLeft, onSwipeRight }) {
   }
 
   function pinchMitte(touches) {
-    return {
-      x: (touches[0].clientX + touches[1].clientX) / 2,
-      y: (touches[0].clientY + touches[1].clientY) / 2
-    }
+    return { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 }
   }
 
   function onTouchStart(e) {
