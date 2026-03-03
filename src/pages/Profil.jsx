@@ -214,48 +214,44 @@ function Profil() {
   return (
     <div className="container" style={{ maxWidth: '800px' }}>
 
-      {/* ── Profil Header ── */}
-      {/* ── Profil Header ── */}
+      {/* ── Profil Header – zentriert ── */}
       <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
-
-          {/* Avatar */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <div
-              onClick={() => dateiInput.current?.click()}
-              style={{
-                width: '90px', height: '90px', borderRadius: '50%',
-                background: profil?.avatar_url ? 'transparent' : '#ff6b00',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '2.5rem', cursor: 'pointer', overflow: 'hidden',
-                border: '3px solid #2a2a2a', position: 'relative'
-              }}
-            >
-              {profil?.avatar_url
-                ? <img src={profil.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : '🧗'}
-              <div style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                opacity: avatarLaden ? 1 : 0, transition: 'opacity 0.2s', fontSize: '1.2rem'
-              }}>
-                {avatarLaden ? '⏳' : '📷'}
+        {bearbeiten ? (
+          /* Bearbeitungs-Modus: original layout (flex row) */
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div
+                onClick={() => dateiInput.current?.click()}
+                style={{
+                  width: '90px', height: '90px', borderRadius: '50%',
+                  background: profil?.avatar_url ? 'transparent' : '#ff6b00',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '2.5rem', cursor: 'pointer', overflow: 'hidden',
+                  border: '3px solid #2a2a2a', position: 'relative'
+                }}
+              >
+                {profil?.avatar_url
+                  ? <img src={profil.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : '🧗'}
+                <div style={{
+                  position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: avatarLaden ? 1 : 0, transition: 'opacity 0.2s', fontSize: '1.2rem'
+                }}>
+                  {avatarLaden ? '⏳' : '📷'}
+                </div>
               </div>
+              <div style={{
+                position: 'absolute', bottom: 0, right: 0,
+                background: '#ff6b00', borderRadius: '50%',
+                width: '26px', height: '26px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.8rem', cursor: 'pointer', border: '2px solid #111'
+              }} onClick={() => dateiInput.current?.click()}>📷</div>
+              <input ref={dateiInput} type="file" accept="image/*"
+                style={{ display: 'none' }} onChange={avatarHochladen} />
             </div>
-            <div style={{
-              position: 'absolute', bottom: 0, right: 0,
-              background: '#ff6b00', borderRadius: '50%',
-              width: '26px', height: '26px', display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.8rem', cursor: 'pointer', border: '2px solid #111'
-            }} onClick={() => dateiInput.current?.click()}>📷</div>
-            <input ref={dateiInput} type="file" accept="image/*"
-              style={{ display: 'none' }} onChange={avatarHochladen} />
-          </div>
-
-          {/* Info */}
-          <div style={{ flex: 1, minWidth: '200px' }}>
-            {bearbeiten ? (
+            <div style={{ flex: 1, minWidth: '200px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <input value={username} onChange={e => setUsername(e.target.value)}
                   placeholder="Username (min. 3 Zeichen)" maxLength={30} style={inputStyle} />
@@ -272,65 +268,108 @@ function Profil() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                  <h1 style={{ margin: 0, fontSize: '1.5rem' }}>{profil?.username || 'Kein Username'}</h1>
-                  <button onClick={() => setBearbeiten(true)} style={{
-                    background: 'transparent', border: '1px solid #2a2a2a',
-                    color: '#aaa', borderRadius: '6px', padding: '0.2rem 0.6rem',
-                    cursor: 'pointer', fontSize: '0.8rem'
-                  }}>✏️ Bearbeiten</button>
-                </div>
+            </div>
+          </div>
+        ) : (
+          /* Anzeige-Modus: alles zentriert */
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.6rem' }}>
 
-                {/* Bio */}
-                {profil?.bio ? (
-                  <p style={{ color: '#aaa', fontSize: '0.9rem', margin: '0.5rem 0', lineHeight: 1.5 }}>
-                    {profil.bio}
-                  </p>
-                ) : (
-                  <p style={{ color: '#444', fontSize: '0.85rem', margin: '0.5rem 0', fontStyle: 'italic' }}>
-                    Noch keine Bio – klicke auf Bearbeiten um eine hinzuzufügen.
-                  </p>
-                )}
-
-                {/* Lieblings-Halle */}
-                {heimhalle && (
-                  <Link to={`/halle/${heimhalle.id}`} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}>
-                    <div style={{
-                      background: 'rgba(255,107,0,0.1)', border: '1px solid rgba(255,107,0,0.2)',
-                      borderRadius: '20px', padding: '0.25rem 0.75rem',
-                      fontSize: '0.8rem', color: '#ff6b00', display: 'flex', alignItems: 'center', gap: '0.4rem'
-                    }}>
-                      🏠 {heimhalle.name}
-                      <span style={{ color: '#555' }}>· {heimhalle.city}</span>
-                    </div>
-                  </Link>
-                )}
-
-                {/* Statistiken inline */}
-                <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>{ticks.length}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#555' }}>Sends</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
-                      {ticks.filter(t => t.tick_type === 'flash').length}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#555' }}>Flashes</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
-                      {ticks.length > 0 ? [...ticks].sort((a,b) => GRADE.indexOf(b.setter_grade || routen[b.route_id]?.setter_grade) - GRADE.indexOf(a.setter_grade || routen[a.route_id]?.setter_grade))[0] ? (routen[ticks.reduce((best, t) => GRADE.indexOf(routen[t.route_id]?.setter_grade) > GRADE.indexOf(routen[best.route_id]?.setter_grade) ? t : best, ticks[0])?.route_id]?.setter_grade || '–') : '–' : '–'}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#555' }}>Bester Grad</div>
-                  </div>
+            {/* Avatar */}
+            <div style={{ position: 'relative' }}>
+              <div
+                onClick={() => dateiInput.current?.click()}
+                style={{
+                  width: '90px', height: '90px', borderRadius: '50%',
+                  background: profil?.avatar_url ? 'transparent' : '#ff6b00',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '2.5rem', cursor: 'pointer', overflow: 'hidden',
+                  border: '3px solid #2a2a2a', position: 'relative'
+                }}
+              >
+                {profil?.avatar_url
+                  ? <img src={profil.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : '🧗'}
+                <div style={{
+                  position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: avatarLaden ? 1 : 0, transition: 'opacity 0.2s', fontSize: '1.2rem'
+                }}>
+                  {avatarLaden ? '⏳' : '📷'}
                 </div>
               </div>
+              <div style={{
+                position: 'absolute', bottom: 0, right: 0,
+                background: '#ff6b00', borderRadius: '50%',
+                width: '26px', height: '26px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.8rem', cursor: 'pointer', border: '2px solid #111'
+              }} onClick={() => dateiInput.current?.click()}>📷</div>
+              <input ref={dateiInput} type="file" accept="image/*"
+                style={{ display: 'none' }} onChange={avatarHochladen} />
+            </div>
+
+            {/* Name + Bearbeiten-Button */}
+            <div>
+              <h1 style={{ margin: '0 0 0.4rem', fontSize: '1.5rem' }}>
+                {profil?.username || 'Kein Username'}
+              </h1>
+              <button onClick={() => setBearbeiten(true)} style={{
+                background: 'transparent', border: '1px solid #2a2a2a',
+                color: '#aaa', borderRadius: '6px', padding: '0.2rem 0.6rem',
+                cursor: 'pointer', fontSize: '0.8rem'
+              }}>✏️ Bearbeiten</button>
+            </div>
+
+            {/* Bio */}
+            {profil?.bio ? (
+              <p style={{ color: '#aaa', fontSize: '0.9rem', margin: '0.25rem 0', lineHeight: 1.5, maxWidth: '420px' }}>
+                {profil.bio}
+              </p>
+            ) : (
+              <p style={{ color: '#444', fontSize: '0.85rem', margin: '0.25rem 0', fontStyle: 'italic' }}>
+                Noch keine Bio – klicke auf Bearbeiten um eine hinzuzufügen.
+              </p>
             )}
+
+            {/* Lieblings-Halle */}
+            {heimhalle && (
+              <Link to={`/halle/${heimhalle.id}`} style={{ textDecoration: 'none' }}>
+                <div style={{
+                  background: 'rgba(255,107,0,0.1)', border: '1px solid rgba(255,107,0,0.2)',
+                  borderRadius: '20px', padding: '0.25rem 0.75rem',
+                  fontSize: '0.8rem', color: '#ff6b00', display: 'inline-flex', alignItems: 'center', gap: '0.4rem'
+                }}>
+                  🏠 {heimhalle.name}
+                  <span style={{ color: '#555' }}>· {heimhalle.city}</span>
+                </div>
+              </Link>
+            )}
+
+            {/* Trennlinie */}
+            <div style={{ width: '100%', height: '1px', background: '#1e1e1e', margin: '0.25rem 0' }} />
+
+            {/* Statistiken */}
+            <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>{ticks.length}</div>
+                <div style={{ fontSize: '0.75rem', color: '#555' }}>Sends</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
+                  {ticks.filter(t => t.tick_type === 'flash').length}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#555' }}>Flashes</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
+                  {ticks.length > 0 ? [...ticks].sort((a,b) => GRADE.indexOf(b.setter_grade || routen[b.route_id]?.setter_grade) - GRADE.indexOf(a.setter_grade || routen[a.route_id]?.setter_grade))[0] ? (routen[ticks.reduce((best, t) => GRADE.indexOf(routen[t.route_id]?.setter_grade) > GRADE.indexOf(routen[best.route_id]?.setter_grade) ? t : best, ticks[0])?.route_id]?.setter_grade || '–') : '–' : '–'}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#555' }}>Bester Grad</div>
+              </div>
+            </div>
+
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Climber Level ── */}
