@@ -5,11 +5,8 @@ import AccountLoeschen from '../components/AccountLoeschen'
 import { climberXPBerechnen } from '../utils/xpSystem'
 import LevelAnzeige from '../components/LevelAnzeige'
 
-// Fontainebleau-Grade in der richtigen Reihenfolge
-// Wird für den Chart und die Sortierung gebraucht
 const GRADE = ['4A','4B','4C','5A','5B','5C','6A','6A+','6B','6B+','6C','6C+','7A','7A+','7B','7B+','7C','7C+','8A']
 
-// Farben für die drei Send-Arten
 const TICK_FARBEN = {
   flash:       { bg: '#FFD700', text: '#000', label: '⚡ Flash' },
   second_try:  { bg: '#ff6b00', text: '#fff', label: '🔄 2nd Try' },
@@ -20,71 +17,53 @@ function Profil() {
   const [nutzer, setNutzer]         = useState(null)
   const [profil, setProfil]         = useState(null)
   const [ticks, setSends]           = useState([])
-  const [routen, setRouten]         = useState({})   // id → route objekt (als Map für schnellen Zugriff)
+  const [routen, setRouten]         = useState({})
   const [heimhalle, setHeimhalle]   = useState(null)
   const [laden, setLaden]           = useState(true)
-  const [filterGrad, setFilterGrad] = useState('')  //Profil Routen Filter
+  const [filterGrad, setFilterGrad] = useState('')
   const [filterDatum, setFilterDatum] = useState('')
 
-  // Bearbeitungs-States
   const [bearbeiten, setBearbeiten] = useState(false)
   const [username, setUsername]     = useState('')
   const [bio, setBio]               = useState('')
   const [speichern, setSpeichern]   = useState(false)
   const [fehler, setFehler]         = useState('')
 
-  // Avatar Upload
   const [avatarLaden, setAvatarLaden] = useState(false)
   const dateiInput = useRef(null)
 
   // ─── Daten laden ────────────────────────────────────────────────────────────
   useEffect(() => {
     async function allesLaden() {
-      // 1. Session holen
       const { data: { session } } = await supabase.auth.getSession()
       const user = session?.user
       if (!user) { setLaden(false); return }
       setNutzer(user)
 
-      // 2. Profil aus unserer profiles-Tabelle laden
-      //    .maybeSingle() statt .single() – wirft keinen Fehler wenn noch kein Profil existiert
       const { data: profilData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle()
+        .from('profiles').select('*').eq('id', user.id).maybeSingle()
       setProfil(profilData)
       setUsername(profilData?.username || '')
       setBio(profilData?.bio || '')
 
-      // 3. Alle Sends des Nutzers laden
       const { data: tickDaten } = await supabase
-        .from('ticks')
-        .select('*')
-        .eq('user_id', user.id)
+        .from('ticks').select('*').eq('user_id', user.id)
         .order('ticked_at', { ascending: false })
       const alleSends = tickDaten || []
       setSends(alleSends)
 
-      // 4. Zu jedem Tick die Route laden (Name, Grad, Farbe, gym_id)
       if (alleSends.length > 0) {
         const routenIds = [...new Set(alleSends.map(t => t.route_id))]
         const { data: routenDaten } = await supabase
-          .from('routes')
-          .select('id, name, setter_grade, color, section_id, gym_id')
-          .in('id', routenIds)
+          .from('routes').select('id, name, setter_grade, color, section_id, gym_id').in('id', routenIds)
         const routenMap = {}
         ;(routenDaten || []).forEach(r => { routenMap[r.id] = r })
         setRouten(routenMap)
 
-        // 5. Heimhalle berechnen:
-        //    Zähle pro gym_id wie viele Sends der Nutzer hat → höchste Zahl = Heimhalle
         const gymZaehler = {}
         alleSends.forEach(tick => {
           const route = routenMap[tick.route_id]
-          if (route?.gym_id) {
-            gymZaehler[route.gym_id] = (gymZaehler[route.gym_id] || 0) + 1
-          }
+          if (route?.gym_id) gymZaehler[route.gym_id] = (gymZaehler[route.gym_id] || 0) + 1
         })
         const topGymId = Object.entries(gymZaehler).sort((a, b) => b[1] - a[1])[0]?.[0]
         if (topGymId) {
@@ -107,14 +86,9 @@ function Profil() {
       return
     }
     setSpeichern(true)
-
-    // upsert = insert wenn nicht vorhanden, update wenn vorhanden
-    const { error } = await supabase
-      .from('profiles')
+    const { error } = await supabase.from('profiles')
       .upsert({ id: nutzer.id, username: username.trim(), bio: bio.trim(), updated_at: new Date() })
-
     if (error?.code === '23505') {
-      // 23505 = unique constraint violation → Username bereits vergeben
       setFehler('Dieser Username ist bereits vergeben.')
     } else if (error) {
       setFehler('Fehler beim Speichern. Bitte versuche es erneut.')
@@ -129,58 +103,31 @@ function Profil() {
   async function avatarHochladen(e) {
     const datei = e.target.files[0]
     if (!datei) return
-
-    // Client-seitige Prüfung (zusätzlich zur Bucket-Einstellung)
-    if (datei.size > 5 * 1024 * 1024) {
-      setFehler('Bild darf maximal 5 MB groß sein.')
-      return
-    }
-    if (!datei.type.startsWith('image/')) {
-      setFehler('Nur Bilddateien erlaubt.')
-      return
-    }
-
-    setAvatarLaden(true)
-    setFehler('')
-
-    // Dateiname: userId/avatar.jpg (überschreibt immer das alte Bild)
-    // So sammeln sich keine alten Bilder an
+    if (datei.size > 5 * 1024 * 1024) { setFehler('Bild darf maximal 5 MB groß sein.'); return }
+    if (!datei.type.startsWith('image/')) { setFehler('Nur Bilddateien erlaubt.'); return }
+    setAvatarLaden(true); setFehler('')
     const dateiEndung = datei.name.split('.').pop()
     const pfad = `${nutzer.id}/avatar.${dateiEndung}`
-
-    const { error: uploadFehler } = await supabase.storage
-      .from('avatars')
-      .upload(pfad, datei, { upsert: true })  // upsert: true = überschreiben erlaubt
-
-    if (uploadFehler) {
-      setFehler('Upload fehlgeschlagen. Bitte versuche es erneut.')
-      setAvatarLaden(false)
-      return
-    }
-
-    // Öffentliche URL holen und im Profil speichern
+    const { error: uploadFehler } = await supabase.storage.from('avatars').upload(pfad, datei, { upsert: true })
+    if (uploadFehler) { setFehler('Upload fehlgeschlagen. Bitte versuche es erneut.'); setAvatarLaden(false); return }
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(pfad)
-
-    await supabase
-      .from('profiles')
-      .upsert({ id: nutzer.id, avatar_url: publicUrl, updated_at: new Date() })
-
+    await supabase.from('profiles').upsert({ id: nutzer.id, avatar_url: publicUrl, updated_at: new Date() })
     setProfil(prev => ({ ...prev, avatar_url: publicUrl }))
     setAvatarLaden(false)
   }
 
   // ─── Chart-Daten berechnen ───────────────────────────────────────────────────
-
-  // Schwierigkeitsverteilung: wie viele Sends pro Grad?
   const climberXP = climberXPBerechnen(ticks, routen)
+
+  // BY GRADES – nur Grade mit mind. 1 Send anzeigen
   const gradVerteilung = GRADE.map(grad => ({
     grad,
     anzahl: ticks.filter(t => routen[t.route_id]?.setter_grade === grad).length
-  }))  // Nur Grade mit mindestens 1 Tick anzeigen
-
+  }))
+  const gradVerteilungMitSends = gradVerteilung.filter(g => g.anzahl > 0)
   const maxGrad = Math.max(...gradVerteilung.map(g => g.anzahl), 1)
 
-  // Sends pro Monat (letzte 6 Monate)
+  // Sends pro Monat
   const heute = new Date()
   const monate = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(heute.getFullYear(), heute.getMonth() - (5 - i), 1)
@@ -214,22 +161,19 @@ function Profil() {
   return (
     <div className="container" style={{ maxWidth: '800px' }}>
 
-      {/* ── Profil Header – zentriert ── */}
-      <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+      {/* ── Profil Header ── */}
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
         {bearbeiten ? (
-          /* Bearbeitungs-Modus: original layout (flex row) */
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
+          /* Bearbeitungs-Modus */
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.25rem', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div
-                onClick={() => dateiInput.current?.click()}
-                style={{
-                  width: '90px', height: '90px', borderRadius: '50%',
-                  background: profil?.avatar_url ? 'transparent' : '#ff6b00',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '2.5rem', cursor: 'pointer', overflow: 'hidden',
-                  border: '3px solid #2a2a2a', position: 'relative'
-                }}
-              >
+              <div onClick={() => dateiInput.current?.click()} style={{
+                width: '80px', height: '80px', borderRadius: '50%',
+                background: profil?.avatar_url ? 'transparent' : '#ff6b00',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '2rem', cursor: 'pointer', overflow: 'hidden',
+                border: '3px solid #2a2a2a', position: 'relative'
+              }}>
                 {profil?.avatar_url
                   ? <img src={profil.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : '🧗'}
@@ -237,55 +181,46 @@ function Profil() {
                   position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   opacity: avatarLaden ? 1 : 0, transition: 'opacity 0.2s', fontSize: '1.2rem'
-                }}>
-                  {avatarLaden ? '⏳' : '📷'}
-                </div>
+                }}>{avatarLaden ? '⏳' : '📷'}</div>
               </div>
               <div style={{
-                position: 'absolute', bottom: 0, right: 0,
-                background: '#ff6b00', borderRadius: '50%',
-                width: '26px', height: '26px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.8rem', cursor: 'pointer', border: '2px solid #111'
+                position: 'absolute', bottom: 0, right: 0, background: '#ff6b00',
+                borderRadius: '50%', width: '24px', height: '24px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.75rem', cursor: 'pointer', border: '2px solid #111'
               }} onClick={() => dateiInput.current?.click()}>📷</div>
-              <input ref={dateiInput} type="file" accept="image/*"
-                style={{ display: 'none' }} onChange={avatarHochladen} />
+              <input ref={dateiInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={avatarHochladen} />
             </div>
-            <div style={{ flex: 1, minWidth: '200px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <input value={username} onChange={e => setUsername(e.target.value)}
-                  placeholder="Username (min. 3 Zeichen)" maxLength={30} style={inputStyle} />
-                <textarea value={bio} onChange={e => setBio(e.target.value)}
-                  placeholder="Kurze Beschreibung über dich..." maxLength={200} rows={3}
-                  style={{ ...inputStyle, resize: 'vertical' }} />
-                {fehler && <p style={{ color: '#ff4444', fontSize: '0.85rem', margin: 0 }}>{fehler}</p>}
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn" onClick={profilSpeichern} disabled={speichern} style={{ flex: 1 }}>
-                    {speichern ? '⏳' : '✅ Speichern'}
-                  </button>
-                  <button className="btn btn-outline" onClick={() => setBearbeiten(false)} style={{ flex: 1 }}>
-                    Abbrechen
-                  </button>
-                </div>
+            <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <input value={username} onChange={e => setUsername(e.target.value)}
+                placeholder="Username (min. 3 Zeichen)" maxLength={30} style={inputStyle} />
+              <textarea value={bio} onChange={e => setBio(e.target.value)}
+                placeholder="Kurze Beschreibung über dich..." maxLength={200} rows={3}
+                style={{ ...inputStyle, resize: 'vertical' }} />
+              {fehler && <p style={{ color: '#ff4444', fontSize: '0.85rem', margin: 0 }}>{fehler}</p>}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn" onClick={profilSpeichern} disabled={speichern} style={{ flex: 1 }}>
+                  {speichern ? '⏳' : '✅ Speichern'}
+                </button>
+                <button className="btn btn-outline" onClick={() => setBearbeiten(false)} style={{ flex: 1 }}>
+                  Abbrechen
+                </button>
               </div>
             </div>
           </div>
         ) : (
-          /* Anzeige-Modus: alles zentriert */
+          /* Anzeige-Modus – zentriert */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '0.6rem' }}>
 
-            {/* Avatar */}
-            <div style={{ position: 'relative' }}>
-              <div
-                onClick={() => dateiInput.current?.click()}
-                style={{
-                  width: '90px', height: '90px', borderRadius: '50%',
-                  background: profil?.avatar_url ? 'transparent' : '#ff6b00',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '2.5rem', cursor: 'pointer', overflow: 'hidden',
-                  border: '3px solid #2a2a2a', position: 'relative'
-                }}
-              >
+            {/* Avatar mit Kamera-Overlay */}
+            <div style={{ position: 'relative', marginBottom: '0.25rem' }}>
+              <div onClick={() => dateiInput.current?.click()} style={{
+                width: '90px', height: '90px', borderRadius: '50%',
+                background: profil?.avatar_url ? 'transparent' : '#ff6b00',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '2.5rem', cursor: 'pointer', overflow: 'hidden',
+                border: '3px solid #2a2a2a', position: 'relative'
+              }}>
                 {profil?.avatar_url
                   ? <img src={profil.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : '🧗'}
@@ -293,51 +228,48 @@ function Profil() {
                   position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   opacity: avatarLaden ? 1 : 0, transition: 'opacity 0.2s', fontSize: '1.2rem'
-                }}>
-                  {avatarLaden ? '⏳' : '📷'}
-                </div>
+                }}>{avatarLaden ? '⏳' : '📷'}</div>
               </div>
               <div style={{
-                position: 'absolute', bottom: 0, right: 0,
-                background: '#ff6b00', borderRadius: '50%',
-                width: '26px', height: '26px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
+                position: 'absolute', bottom: 0, right: 0, background: '#ff6b00',
+                borderRadius: '50%', width: '26px', height: '26px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '0.8rem', cursor: 'pointer', border: '2px solid #111'
               }} onClick={() => dateiInput.current?.click()}>📷</div>
-              <input ref={dateiInput} type="file" accept="image/*"
-                style={{ display: 'none' }} onChange={avatarHochladen} />
+              <input ref={dateiInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={avatarHochladen} />
             </div>
 
-            {/* Name + Bearbeiten-Button */}
-            <div>
-              <h1 style={{ margin: '0 0 0.4rem', fontSize: '1.5rem' }}>
-                {profil?.username || 'Kein Username'}
-              </h1>
-              <button onClick={() => setBearbeiten(true)} style={{
-                background: 'transparent', border: '1px solid #2a2a2a',
-                color: '#aaa', borderRadius: '6px', padding: '0.2rem 0.6rem',
-                cursor: 'pointer', fontSize: '0.8rem'
-              }}>✏️ Bearbeiten</button>
-            </div>
+            {/* Name */}
+            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>
+              {profil?.username || 'Kein Username'}
+            </h1>
+
+            {/* Bearbeiten-Button – subtil */}
+            <button onClick={() => setBearbeiten(true)} style={{
+              background: 'transparent', border: '1px solid #2a2a2a',
+              color: '#555', borderRadius: '6px', padding: '0.2rem 0.7rem',
+              cursor: 'pointer', fontSize: '0.78rem'
+            }}>✏️ Bearbeiten</button>
 
             {/* Bio */}
             {profil?.bio ? (
-              <p style={{ color: '#aaa', fontSize: '0.9rem', margin: '0.25rem 0', lineHeight: 1.5, maxWidth: '420px' }}>
+              <p style={{ color: '#aaa', fontSize: '0.88rem', margin: '0.1rem 0', lineHeight: 1.5, maxWidth: '380px' }}>
                 {profil.bio}
               </p>
             ) : (
-              <p style={{ color: '#444', fontSize: '0.85rem', margin: '0.25rem 0', fontStyle: 'italic' }}>
-                Noch keine Bio – klicke auf Bearbeiten um eine hinzuzufügen.
+              <p style={{ color: '#3a3a3a', fontSize: '0.82rem', margin: '0.1rem 0', fontStyle: 'italic' }}>
+                Noch keine Bio – klicke auf Bearbeiten.
               </p>
             )}
 
-            {/* Lieblings-Halle */}
+            {/* Heimhalle */}
             {heimhalle && (
               <Link to={`/halle/${heimhalle.id}`} style={{ textDecoration: 'none' }}>
                 <div style={{
-                  background: 'rgba(255,107,0,0.1)', border: '1px solid rgba(255,107,0,0.2)',
-                  borderRadius: '20px', padding: '0.25rem 0.75rem',
-                  fontSize: '0.8rem', color: '#ff6b00', display: 'inline-flex', alignItems: 'center', gap: '0.4rem'
+                  background: 'rgba(255,107,0,0.08)', border: '1px solid rgba(255,107,0,0.2)',
+                  borderRadius: '20px', padding: '0.25rem 0.85rem',
+                  fontSize: '0.8rem', color: '#ff6b00',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem'
                 }}>
                   🏠 {heimhalle.name}
                   <span style={{ color: '#555' }}>· {heimhalle.city}</span>
@@ -346,26 +278,25 @@ function Profil() {
             )}
 
             {/* Trennlinie */}
-            <div style={{ width: '100%', height: '1px', background: '#1e1e1e', margin: '0.25rem 0' }} />
+            <div style={{ width: '100%', height: '1px', background: '#1a1a1a', margin: '0.4rem 0' }} />
 
-            {/* Statistiken */}
-            <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>{ticks.length}</div>
-                <div style={{ fontSize: '0.75rem', color: '#555' }}>Sends</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
-                  {ticks.filter(t => t.tick_type === 'flash').length}
+            {/* Statistiken – 3 Kacheln */}
+            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-around' }}>
+              {[
+                { zahl: ticks.length, label: 'Sends' },
+                { zahl: ticks.filter(t => t.tick_type === 'flash').length, label: 'Flashes' },
+                { zahl: ticks.length > 0
+                    ? (routen[ticks.reduce((best, t) =>
+                        GRADE.indexOf(routen[t.route_id]?.setter_grade) > GRADE.indexOf(routen[best.route_id]?.setter_grade) ? t : best,
+                        ticks[0])?.route_id]?.setter_grade || '–')
+                    : '–',
+                  label: 'Bester Grad' },
+              ].map(({ zahl, label }) => (
+                <div key={label} style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00', lineHeight: 1 }}>{zahl}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#555', marginTop: '0.25rem' }}>{label}</div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#555' }}>Flashes</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#ff6b00' }}>
-                  {ticks.length > 0 ? [...ticks].sort((a,b) => GRADE.indexOf(b.setter_grade || routen[b.route_id]?.setter_grade) - GRADE.indexOf(a.setter_grade || routen[a.route_id]?.setter_grade))[0] ? (routen[ticks.reduce((best, t) => GRADE.indexOf(routen[t.route_id]?.setter_grade) > GRADE.indexOf(routen[best.route_id]?.setter_grade) ? t : best, ticks[0])?.route_id]?.setter_grade || '–') : '–' : '–'}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#555' }}>Bester Grad</div>
-              </div>
+              ))}
             </div>
 
           </div>
@@ -374,41 +305,30 @@ function Profil() {
 
       {/* ── Climber Level ── */}
       <LevelAnzeige xp={climberXP} titel="🧗 Climber Level" />
-            {ticks.length > 0 && (
+
+      {ticks.length > 0 && (
         <>
-          {/* ── Sends pro Jahr ── */}
-          <div className="card" style={{ marginBottom: '2rem' }}>
+          {/* ── Sends pro Monat ── */}
+          <div className="card" style={{ marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h2 style={{ margin: 0, fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>SENDS PRO MONAT</h2>
               <span style={{ color: '#aaa', fontSize: '0.85rem' }}>{new Date().getFullYear()}</span>
             </div>
-
-            {/* Balken Chart */}
             <div style={{ position: 'relative' }}>
-              {/* Y-Achse Linien */}
               {[0, 25, 50, 75, 100].map(pct => (
                 <div key={pct} style={{
                   position: 'absolute', left: 0, right: 0,
-                  bottom: `${pct}%`, height: '1px',
-                  background: 'rgba(255,255,255,0.05)'
+                  bottom: `${pct}%`, height: '1px', background: 'rgba(255,255,255,0.05)'
                 }} />
               ))}
-
-              <div style={{
-                display: 'flex', alignItems: 'flex-end', gap: '4px',
-                height: '140px', padding: '0 0.25rem'
-              }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '140px', padding: '0 0.25rem' }}>
                 {monate.map(({ label, anzahl }) => (
                   <div key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    {anzahl > 0 && (
-                      <span style={{ fontSize: '0.6rem', color: '#aaa' }}>{anzahl}</span>
-                    )}
+                    {anzahl > 0 && <span style={{ fontSize: '0.6rem', color: '#aaa' }}>{anzahl}</span>}
                     <div style={{
                       width: '100%',
                       height: `${maxMonat > 0 ? (anzahl / maxMonat) * 110 : 0}px`,
-                      background: anzahl > 0
-                        ? 'linear-gradient(to top, #4488ff, #44bbff)'
-                        : 'transparent',
+                      background: anzahl > 0 ? 'linear-gradient(to top, #4488ff, #44bbff)' : 'transparent',
                       borderRadius: '3px 3px 0 0',
                       minHeight: anzahl > 0 ? '4px' : '0',
                       transition: 'height 0.4s',
@@ -418,14 +338,9 @@ function Profil() {
                   </div>
                 ))}
               </div>
-
-              {/* Linie über Balken */}
               <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '140px', pointerEvents: 'none' }}>
                 <polyline
-                  fill="none"
-                  stroke="#44ccff"
-                  strokeWidth="1.5"
-                  strokeDasharray="3,2"
+                  fill="none" stroke="#44ccff" strokeWidth="1.5" strokeDasharray="3,2"
                   points={monate.map(({ anzahl }, i) => {
                     const x = (i / (monate.length - 1)) * 100
                     const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
@@ -436,42 +351,39 @@ function Profil() {
                   if (anzahl === 0) return null
                   const x = (i / (monate.length - 1)) * 100
                   const y = maxMonat > 0 ? 140 - (anzahl / maxMonat) * 110 : 140
-                  return (
-                    <circle key={i} cx={`${x}%`} cy={y} r="3"
-                      fill="#44ccff" stroke="#111" strokeWidth="1.5" />
-                  )
+                  return <circle key={i} cx={`${x}%`} cy={y} r="3" fill="#44ccff" stroke="#111" strokeWidth="1.5" />
                 })}
               </svg>
             </div>
           </div>
 
-    {/* ── BY GRADES ── */}
-    <div className="card" style={{ marginBottom: '2rem' }}>
-      <h2 style={{ margin: '0 0 1.25rem', fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>BY GRADES</h2>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {[...gradVerteilung].reverse().map(({ grad, anzahl }) => (
-          <div key={grad} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ width: '40px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{grad}</span>
-            <div style={{ flex: 1, background: '#111', borderRadius: '3px', height: '18px', overflow: 'hidden', position: 'relative' }}>
-              <div style={{
-                height: '100%',
-                width: `${(anzahl / maxGrad) * 100}%`,
-                background: 'linear-gradient(to right, #4488ff, #44bbcc)',
-                borderRadius: '3px',
-                transition: 'width 0.5s',
-                boxShadow: '0 0 6px rgba(68,136,255,0.3)'
-              }} />
+          {/* ── BY GRADES – nur Grade mit Sends ── */}
+          {gradVerteilungMitSends.length > 0 && (
+            <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: '0 0 1rem', fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>BY GRADES</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {[...gradVerteilungMitSends].reverse().map(({ grad, anzahl }) => (
+                  <div key={grad} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ width: '40px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{grad}</span>
+                    <div style={{ flex: 1, background: '#111', borderRadius: '3px', height: '18px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', width: `${(anzahl / maxGrad) * 100}%`,
+                        background: 'linear-gradient(to right, #4488ff, #44bbcc)',
+                        borderRadius: '3px', transition: 'width 0.5s',
+                        boxShadow: '0 0 6px rgba(68,136,255,0.3)'
+                      }} />
+                    </div>
+                    <span style={{ width: '24px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', fontWeight: 'bold' }}>{anzahl}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <span style={{ width: '24px', fontSize: '0.8rem', color: '#555', textAlign: 'right' }}>{anzahl}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  </>
-)}
+          )}
+        </>
+      )}
+
       {/* ── Send-Liste ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <h2 style={{ margin: 0 }}>✅ Meine Sends</h2>
       </div>
 
@@ -493,23 +405,21 @@ function Profil() {
           <option value="365">Letztes Jahr</option>
         </select>
         {(filterGrad || filterDatum) && (
-          <button
-            onClick={() => { setFilterGrad(''); setFilterDatum('') }}
-            style={{
-              background: 'transparent', border: '1px solid #444',
-              color: '#aaa', padding: '0.5rem 0.75rem',
-              borderRadius: '8px', cursor: 'pointer', flexShrink: 0
-            }}
-          >✕</button>
+          <button onClick={() => { setFilterGrad(''); setFilterDatum('') }} style={{
+            background: 'transparent', border: '1px solid #444',
+            color: '#aaa', padding: '0.5rem 0.75rem',
+            borderRadius: '8px', cursor: 'pointer', flexShrink: 0
+          }}>✕</button>
         )}
       </div>
+
       {ticks.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
           <p>Noch keine Routen gesendet.</p>
           <Link to="/" style={{ color: '#ff6b00' }}>Jetzt Hallen entdecken →</Link>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '3rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '3rem' }}>
           {ticks.filter(tick => {
             const route = routen[tick.route_id]
             if (filterGrad && route?.setter_grade !== filterGrad) return false
@@ -524,54 +434,37 @@ function Profil() {
             const route = routen[tick.route_id]
             const tickInfo = TICK_FARBEN[tick.tick_type] || TICK_FARBEN.done
             return (
-              <Link
-                key={tick.id}
-                to={route ? `/route/${route.id}` : '#'}
-                style={{ textDecoration: 'none' }}
-              >
-                <div className="card" style={{
-                  display: 'flex', alignItems: 'center', gap: '1rem',
-                  transition: 'border-color 0.2s'
-                }}>
-                  {/* Grifffarbe */}
-                  <div style={{
-                    width: '8px', alignSelf: 'stretch', borderRadius: '4px',
-                    background: route?.color || '#444', flexShrink: 0
-                  }} />
-                  <div style={{ flex: 1 }}>
-                    <strong style={{ color: 'white' }}>{route?.name || 'Route gelöscht'}</strong>
-                    <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.2rem' }}>
+              <Link key={tick.id} to={route ? `/route/${route.id}` : '#'} style={{ textDecoration: 'none' }}>
+                <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'border-color 0.2s' }}>
+                  <div style={{ width: '6px', alignSelf: 'stretch', borderRadius: '3px', background: route?.color || '#333', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ color: 'white', fontSize: '0.95rem' }}>{route?.name || 'Route gelöscht'}</strong>
+                    <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '0.15rem' }}>
                       {new Date(tick.ticked_at).toLocaleDateString('de-DE')}
                     </div>
                   </div>
-                  {/* Grad */}
                   {route?.setter_grade && (
-                    <span style={{
-                      background: 'rgba(255,107,0,0.15)', color: '#ff6b00',
-                      padding: '0.2rem 0.6rem', borderRadius: '20px',
-                      fontSize: '0.85rem', fontWeight: 'bold'
-                    }}>{route.setter_grade}</span>
+                    <span style={{ background: 'rgba(255,107,0,0.15)', color: '#ff6b00', padding: '0.15rem 0.5rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', flexShrink: 0 }}>
+                      {route.setter_grade}
+                    </span>
                   )}
-                  {/* Send-Art Badge */}
-                  <span style={{
-                    background: tickInfo.bg, color: tickInfo.text,
-                    padding: '0.2rem 0.6rem', borderRadius: '20px',
-                    fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap'
-                  }}>{tickInfo.label}</span>
+                  <span style={{ background: tickInfo.bg, color: tickInfo.text, padding: '0.15rem 0.5rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {tickInfo.label}
+                  </span>
                 </div>
               </Link>
             )
-           })}
-          </div>
-        )}
-        {/* ── Account löschen ── */}
-       <AccountLoeschen nutzer={nutzer} />
-     </div>
-    )
-  } 
+          })}
+        </div>
+      )}
 
- const inputStyle = {
+      {/* ── Account löschen ── */}
+      <AccountLoeschen nutzer={nutzer} />
+    </div>
+  )
+}
 
+const inputStyle = {
   width: '100%', padding: '0.6rem 0.75rem',
   background: '#1a1a1a', border: '1px solid #2a2a2a',
   borderRadius: '8px', color: 'white', fontSize: '0.95rem',
@@ -579,14 +472,9 @@ function Profil() {
 }
 
 const filterSelectStyle = {
-  padding: '0.5rem 0.75rem',
-  borderRadius: '8px',
-  border: '1px solid #2a2a2a',
-  background: '#111',
-  color: 'white',
-  fontSize: '0.9rem',
-  cursor: 'pointer',
-  flexShrink: 0
+  padding: '0.5rem 0.75rem', borderRadius: '8px',
+  border: '1px solid #2a2a2a', background: '#111',
+  color: 'white', fontSize: '0.9rem', cursor: 'pointer', flexShrink: 0
 }
 
 export default Profil
