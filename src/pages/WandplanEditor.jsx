@@ -480,11 +480,6 @@ function WandplanEditor() {
                   boxShadow: highlightRoute === m.routeId ? `0 0 16px ${m.color}` : 'none',
                   transition: 'background 0.15s, box-shadow 0.15s'
                 }}>
-                  <span style={{
-                    position: 'absolute', top: '-20px', left: '0',
-                    background: m.color, color: 'white', fontSize: '0.65rem',
-                    padding: '1px 5px', borderRadius: '4px', whiteSpace: 'nowrap'
-                  }}>{m.name || 'Route'}</span>
                 </div>
               ))}
 
