@@ -1,14 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const ADMIN_EMAIL = 'DEINE_EMAIL@gmail.com' // ← deine E-Mail
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 Deno.serve(async (req) => {
-  // CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -28,22 +25,6 @@ Deno.serve(async (req) => {
       code,
       email,
       expires_at: expires_at.toISOString()
-    })
-
-    await fetch(`${Deno.env.get('SUPABASE_URL')}/auth/v1/admin/generate_link`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`
-      },
-      body: JSON.stringify({
-        type: 'magiclink',
-        email: ADMIN_EMAIL,
-        options: {
-          data: { registration_code: code, new_user_email: email }
-        }
-      })
     })
 
     return new Response(
