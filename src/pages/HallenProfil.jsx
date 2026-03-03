@@ -69,11 +69,12 @@ function HallenProfil() {
 
   const anzeigeName = profil?.username || '🧗 Unbekannter Kletterer'
 
-  // Chart-Daten – 1:1 aus Profil.jsx
+  // Chart-Daten
   const gradVerteilung = GRADE.map(grad => ({
     grad,
     anzahl: ticks.filter(t => routen[t.route_id]?.setter_grade === grad).length
   }))
+  const gradVerteilungMitSends = gradVerteilung.filter(g => g.anzahl > 0)
   const maxGrad = Math.max(...gradVerteilung.map(g => g.anzahl), 1)
 
   const heute = new Date()
@@ -171,7 +172,7 @@ function HallenProfil() {
 
       {ticks.length > 0 && (
         <>
-          {/* Sends pro Monat – 1:1 aus Profil.jsx */}
+          {/* Sends pro Monat */}
           <div className="card" style={{ marginBottom: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h2 style={{ margin: 0, fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>SENDS PRO MONAT</h2>
@@ -221,28 +222,30 @@ function HallenProfil() {
             </div>
           </div>
 
-          {/* By Grades – 1:1 aus Profil.jsx */}
-          <div className="card" style={{ marginBottom: '2rem' }}>
-            <h2 style={{ margin: '0 0 1.25rem', fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>BY GRADES</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[...gradVerteilung].reverse().map(({ grad, anzahl }) => (
-                <div key={grad} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ width: '40px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{grad}</span>
-                  <div style={{ flex: 1, background: '#111', borderRadius: '3px', height: '18px', overflow: 'hidden', position: 'relative' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${(anzahl / maxGrad) * 100}%`,
-                      background: 'linear-gradient(to right, #4488ff, #44bbcc)',
-                      borderRadius: '3px',
-                      transition: 'width 0.5s',
-                      boxShadow: '0 0 6px rgba(68,136,255,0.3)'
-                    }} />
+          {/* By Grades – nur Grade mit Sends */}
+          {gradVerteilungMitSends.length > 0 && (
+            <div className="card" style={{ marginBottom: '2rem' }}>
+              <h2 style={{ margin: '0 0 1.25rem', fontSize: '1rem', color: '#aaa', letterSpacing: '0.1em' }}>BY GRADES</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {[...gradVerteilungMitSends].reverse().map(({ grad, anzahl }) => (
+                  <div key={grad} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ width: '40px', fontSize: '0.8rem', color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{grad}</span>
+                    <div style={{ flex: 1, background: '#111', borderRadius: '3px', height: '18px', overflow: 'hidden', position: 'relative' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${(anzahl / maxGrad) * 100}%`,
+                        background: 'linear-gradient(to right, #4488ff, #44bbcc)',
+                        borderRadius: '3px',
+                        transition: 'width 0.5s',
+                        boxShadow: '0 0 6px rgba(68,136,255,0.3)'
+                      }} />
+                    </div>
+                    <span style={{ width: '24px', fontSize: '0.8rem', color: '#555', textAlign: 'right' }}>{anzahl}</span>
                   </div>
-                  <span style={{ width: '24px', fontSize: '0.8rem', color: '#555', textAlign: 'right' }}>{anzahl}</span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
