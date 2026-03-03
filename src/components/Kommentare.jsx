@@ -236,26 +236,30 @@ function Kommentare({ routeId, gymId }) {
   }
 
   async function kommentarLoeschen(id) {
-    // Alle zu löschenden IDs sammeln (inkl. Kinder)
-    const zuLoeschen = new Set()
-    function sammeln(kid) {
-      zuLoeschen.add(kid)
-      alleKommentare.filter(k => k.parent_id === kid).forEach(k => sammeln(k.id))
-    }
-    sammeln(id)
+  const zuLoeschen = new Set()
+  function sammeln(kid) {
+    zuLoeschen.add(kid)
+    alleKommentare.filter(k => k.parent_id === kid).forEach(k => sammeln(k.id))
+  }
+  sammeln(id)
 
-    // Beta-Videos aus Storage löschen
-    const videoKommentare = alleKommentare.filter(k => zuLoeschen.has(k.id) && k.video_url)
-    for (const k of videoKommentare) {
+  // Beta-Videos aus Storage löschen — Pfad aus URL extrahieren
+  const videoKommentare = alleKommentare.filter(k => zuLoeschen.has(k.id) && k.video_url)
+  for (const k of videoKommentare) {
+    try {
+      const url = new URL(k.video_url)
+      const pfad = url.pathname.split('/beta-videos/')[1]
+      if (pfad) await supabase.storage.from('beta-videos').remove([decodeURIComponent(pfad)])
+    } catch (e) {
+      // Fallback für alte Videos ohne Ordner
       const dateiName = k.video_url.split('/').pop()
       await supabase.storage.from('beta-videos').remove([dateiName])
     }
-
-    // DB-Einträge löschen
-    await supabase.from('comments').delete().in('id', [...zuLoeschen])
-
-    setAlleKommentare(prev => prev.filter(k => !zuLoeschen.has(k.id)))
   }
+
+  await supabase.from('comments').delete().in('id', [...zuLoeschen])
+  setAlleKommentare(prev => prev.filter(k => !zuLoeschen.has(k.id)))
+}
 
   if (laden) return <p style={{ color: '#aaa' }}>Lädt Kommentare...</p>
 

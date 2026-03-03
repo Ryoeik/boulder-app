@@ -250,7 +250,7 @@ function RouteDetail() {
   async function videoHochladen() {
     if (!video) return
     setVideoLaden(true); setVideoFehler('')
-    const dateiName = `${Date.now()}-${video.name}`
+    const dateiName = `${nutzer.id}/${Date.now()}-${video.name}`
     const { error: uploadError } = await supabase.storage.from('beta-videos').upload(dateiName, video)
     if (uploadError) { setVideoFehler('Upload fehlgeschlagen: ' + uploadError.message); setVideoLaden(false); return }
     const { data: urlData } = supabase.storage.from('beta-videos').getPublicUrl(dateiName)

@@ -154,16 +154,6 @@ function Hallen() {
   setGefiltert(aufbereiteteHallen);
 }
 
-      if (gyms) {
-        const aufbereiteteHallen = gyms.map(g => ({
-          ...g,
-          countMembers: g.gym_members?.length || 0,
-          countRoutes: g.routes?.filter(r => r.is_active !== false).length || 0
-        }));
-        setHallen(aufbereiteteHallen);
-        setGefiltert(aufbereiteteHallen);
-      }
-
       // 3. Eigene Mitgliedschaften
       if (session?.user) {
         const { data: mine } = await supabase

@@ -83,22 +83,25 @@ function HalleEinstellungen() {
   }
 
   async function rolleAendern(userId, neueRolle) {
-    const { error } = await supabase
-      .from('gym_members').update({ role: neueRolle })
-      .eq('gym_id', gymId).eq('user_id', userId)
-    if (error) { setFehler('Fehler: ' + error.message); return }
-    setMitglieder(mitglieder.map(m => m.user_id === userId ? { ...m, role: neueRolle } : m))
-    zeigeErfolg('Rolle geändert!')
-  }
+  const { error } = await supabase.rpc('rolle_aendern', {
+    ziel_user_id: userId,
+    ziel_gym_id: gymId,
+    neue_rolle: neueRolle
+  })
+  if (error) { setFehler('Fehler: ' + error.message); return }
+  setMitglieder(mitglieder.map(m => m.user_id === userId ? { ...m, role: neueRolle } : m))
+  zeigeErfolg('Rolle geändert!')
+ }
 
   async function mitgliedEntfernen(userId) {
-    if (!window.confirm('Mitglied wirklich entfernen?')) return
-    const { error } = await supabase
-      .from('gym_members').delete()
-      .eq('gym_id', gymId).eq('user_id', userId)
-    if (error) { setFehler('Fehler: ' + error.message); return }
-    setMitglieder(mitglieder.filter(m => m.user_id !== userId))
-  }
+  if (!window.confirm('Mitglied wirklich entfernen?')) return
+  const { error } = await supabase.rpc('mitglied_entfernen', {
+    ziel_user_id: userId,
+    ziel_gym_id: gymId
+  })
+  if (error) { setFehler('Fehler: ' + error.message); return }
+  setMitglieder(mitglieder.filter(m => m.user_id !== userId))
+ }
 
   async function nutzerkontoLoeschen(userId, username) {
     if (!window.confirm(`Konto von "${username}" wirklich löschen? Alle Daten (Ticks, Kommentare, Bewertungen) werden entfernt!`)) return
