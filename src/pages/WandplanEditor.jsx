@@ -135,11 +135,10 @@ function WandplanEditor() {
     if (!zieheMarker) return
     e.preventDefault()
     const { x, y } = koordinatenAusProzent(e.clientX, e.clientY)
-    setZieheMarker(prev => ({
-      ...prev,
-      x: Math.min(prev.startX, x), y: Math.min(prev.startY, y),
-      width: Math.abs(x - prev.startX), height: Math.abs(y - prev.startY)
-    }))
+    setZieheMarker(prev => {
+      if (!prev) return null
+      return { ...prev, x: Math.min(prev.startX, x), y: Math.min(prev.startY, y), width: Math.abs(x - prev.startX), height: Math.abs(y - prev.startY) }
+    })
   }
   function mausEnde() { markerFertigstellen() }
 
@@ -194,11 +193,10 @@ function WandplanEditor() {
         setPanX(x); setPanY(y)
       } else if (zieheMarker) {
         const { x, y } = koordinatenAusProzent(e.touches[0].clientX, e.touches[0].clientY)
-        setZieheMarker(prev => ({
-          ...prev,
-          x: Math.min(prev.startX, x), y: Math.min(prev.startY, y),
-          width: Math.abs(x - prev.startX), height: Math.abs(y - prev.startY)
-        }))
+        setZieheMarker(prev => {
+          if (!prev) return null
+          return { ...prev, x: Math.min(prev.startX, x), y: Math.min(prev.startY, y), width: Math.abs(x - prev.startX), height: Math.abs(y - prev.startY) }
+        })
       }
     }
   }
@@ -218,27 +216,36 @@ function WandplanEditor() {
     if (!modus) { setZieheMarker(null); return }
 
     if (modus === 'neu') {
+      setMarkierModus(null)
+      markierModusRef.current = null
       setNeueRouteFormular({ x: zieheMarker.x, y: zieheMarker.y, width: zieheMarker.width, height: zieheMarker.height })
       setNeueRouteName(''); setNeueRouteGrad('6A'); setNeueRouteFarbe('#FF4444')
       setNeueRouteBeschreibung(''); setNeueRouteBild(null); setNeueRouteBildVorschau(null)
     } else {
       const route = routen.find(r => r.id === modus)
       const neuerMarker = { routeId: modus, x: zieheMarker.x, y: zieheMarker.y, width: zieheMarker.width, height: zieheMarker.height, color: route?.color || '#ff6b00', name: route?.name || '' }
+      // UI sofort aktualisieren
       setMarker(prev => [...prev.filter(m => m.routeId !== modus), neuerMarker])
       setMarkierModus(null)
-      setFortschritt('📍 Markierung wird gespeichert...')
-      await supabase.from('routes').update({ marker_x: neuerMarker.x, marker_y: neuerMarker.y, marker_width: neuerMarker.width, marker_height: neuerMarker.height }).eq('id', modus)
-      const blob = await bildAusschnittErstellen(neuerMarker)
-      if (blob) {
-        const dateiName = `${modus}-marker.jpg`
-        await supabase.storage.from('route-images').remove([dateiName])
-        const { error } = await supabase.storage.from('route-images').upload(dateiName, blob, { contentType: 'image/jpeg' })
-        if (!error) {
-          const { data: urlData } = supabase.storage.from('route-images').getPublicUrl(dateiName)
-          await supabase.from('routes').update({ image_url: urlData.publicUrl }).eq('id', modus)
+      markierModusRef.current = null
+      setZieheMarker(null)
+      // Speichern im Hintergrund – blockiert UI nicht
+      setFortschritt('📍 Wird gespeichert...')
+      setTimeout(async () => {
+        await supabase.from('routes').update({ marker_x: neuerMarker.x, marker_y: neuerMarker.y, marker_width: neuerMarker.width, marker_height: neuerMarker.height }).eq('id', modus)
+        const blob = await bildAusschnittErstellen(neuerMarker)
+        if (blob) {
+          const dateiName = `${modus}-marker.jpg`
+          await supabase.storage.from('route-images').remove([dateiName])
+          const { error } = await supabase.storage.from('route-images').upload(dateiName, blob, { contentType: 'image/jpeg' })
+          if (!error) {
+            const { data: urlData } = supabase.storage.from('route-images').getPublicUrl(dateiName)
+            await supabase.from('routes').update({ image_url: urlData.publicUrl }).eq('id', modus)
+          }
         }
-      }
-      setFortschritt('')
+        setFortschritt('')
+      }, 50)
+      return
     }
     setZieheMarker(null)
   }
@@ -376,10 +383,10 @@ function WandplanEditor() {
   if (laden) return <div className="container"><p>Lädt...</p></div>
 
   return (
-    <div className="container" style={{ maxWidth: '900px', paddingBottom: '6rem', paddingTop: '0' }}>
+    <div className="container" style={{ maxWidth: '900px', paddingBottom: '6rem', paddingTop: '0', marginTop: '-0.75rem' }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.25rem 0 0.5rem' }}>
         <Link to={`/halle/${gymId}/sektionen`} style={{ color: '#aaa', textDecoration: 'none', fontSize: '1.2rem', flexShrink: 0, lineHeight: 1 }}>←</Link>
         <h1 style={{ fontSize: '1.15rem', margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           🗺️ {sektion?.name}
@@ -396,12 +403,18 @@ function WandplanEditor() {
       {/* Markier-Modus Banner */}
       {istMarkierAktiv && (
         <div style={{ background: 'rgba(255,107,0,0.1)', border: '1px solid #ff6b00', borderRadius: '10px', padding: '0.55rem 0.85rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.83rem', color: '#ff6b00' }}>
+          <span style={{ fontSize: '0.83rem', color: '#ff6b00', flex: 1 }}>
             {markierModus === 'neu'
-              ? '✋ Rechteck auf dem Bild ziehen → neue Route'
+              ? '✋ Rechteck ziehen → neue Route erstellen'
               : `✋ Rechteck ziehen für „${routen.find(r => r.id === markierModus)?.name}"`}
           </span>
-          <button onClick={() => { setMarkierModus(null); setZieheMarker(null) }} style={{ background: 'transparent', border: '1px solid #ff6b00', color: '#ff6b00', borderRadius: '6px', padding: '0.2rem 0.55rem', cursor: 'pointer', fontSize: '0.78rem', flexShrink: 0 }}>✕</button>
+          {/* Wenn 'neu' aktiv und es gibt nicht-markierte Routen → Option anzeigen */}
+          {markierModus === 'neu' && nichtMarkierteRouten.length > 0 && (
+            <button onClick={() => setZeigeMarkierenSheet(true)} style={{ background: 'transparent', border: '1px solid #ff6b00', color: '#ff6b00', borderRadius: '6px', padding: '0.2rem 0.55rem', cursor: 'pointer', fontSize: '0.75rem', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              Andere Route
+            </button>
+          )}
+          <button onClick={() => { setMarkierModus(null); setZieheMarker(null) }} style={{ background: 'transparent', border: '1px solid #555', color: '#888', borderRadius: '6px', padding: '0.2rem 0.55rem', cursor: 'pointer', fontSize: '0.78rem', flexShrink: 0 }}>✕</button>
         </div>
       )}
 
@@ -472,9 +485,11 @@ function WandplanEditor() {
 
         {/* Markieren */}
         <button onClick={() => {
-          const nichtMarkiert = routen.filter(r => !marker.some(m => m.routeId === r.id))
-          if (nichtMarkiert.length === 0) { setMarkierModus('neu') }
-          else { setZeigeMarkierenSheet(true) }
+          if (istMarkierAktiv) {
+            setMarkierModus(null); setZieheMarker(null)
+          } else {
+            setMarkierModus('neu')
+          }
         }} style={{
           background: istMarkierAktiv ? 'rgba(255,107,0,0.15)' : '#1a1a1a',
           border: `1px solid ${istMarkierAktiv ? '#ff6b00' : '#2a2a2a'}`,
@@ -539,7 +554,7 @@ function WandplanEditor() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, cursor: 'pointer', minWidth: 0 }}
                     onClick={() => {
                       if (hatMarker) { routeHighlight(route.id) }
-                      else { setMarkierModus(istGewaehlt ? null : route.id); setZeigeRoutenPanel(false) }
+                      else { setZieheMarker(null); markierModusRef.current = istGewaehlt ? null : route.id; setMarkierModus(istGewaehlt ? null : route.id); setZeigeRoutenPanel(false) }
                     }}>
                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: route.color, flexShrink: 0 }} />
                     <span style={{ flex: 1, fontSize: '0.83rem', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{route.name || 'Unbenannte Route'}</span>
@@ -556,25 +571,27 @@ function WandplanEditor() {
       )}
 
       {/* ── Markieren Auswahl Sheet ── */}
-      <BottomSheet offen={zeigeMarkierenSheet} onClose={() => setZeigeMarkierenSheet(false)} titel="📍 Was markieren?">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          <button onClick={() => { setMarkierModus('neu'); setZeigeMarkierenSheet(false) }} style={{ background: '#1a1a1a', border: '1px solid #ff6b00', color: '#ff6b00', borderRadius: '10px', padding: '0.8rem 1rem', cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left' }}>
-            ➕ Neue Route erstellen & markieren
-          </button>
-          {nichtMarkierteRouten.length > 0 && (
-            <>
-              <p style={{ color: '#555', fontSize: '0.78rem', margin: '0.25rem 0 0' }}>Noch nicht markierte Routen:</p>
-              {nichtMarkierteRouten.map(route => (
-                <button key={route.id} onClick={() => { setMarkierModus(route.id); setZeigeMarkierenSheet(false) }} style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', color: 'white', borderRadius: '10px', padding: '0.65rem 1rem', cursor: 'pointer', fontSize: '0.85rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: route.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>{route.name || 'Unbenannte Route'}</span>
-                  <span style={{ color: '#ff6b00', fontSize: '0.8rem' }}>{route.setter_grade}</span>
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-      </BottomSheet>
+      <BottomSheet offen={zeigeMarkierenSheet} onClose={() => setZeigeMarkierenSheet(false)} titel="📍 Was markieren?"
+        kinder={
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+            <button onClick={() => { setMarkierModus('neu'); setZeigeMarkierenSheet(false) }} style={{ background: '#1a1a1a', border: '1px solid #ff6b00', color: '#ff6b00', borderRadius: '10px', padding: '0.8rem 1rem', cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left' }}>
+              ➕ Neue Route erstellen & markieren
+            </button>
+            {nichtMarkierteRouten.length > 0 && (
+              <>
+                <p style={{ color: '#555', fontSize: '0.78rem', margin: '0.25rem 0 0' }}>Noch nicht markierte Routen:</p>
+                {nichtMarkierteRouten.map(route => (
+                  <button key={route.id} onClick={() => { setMarkierModus(route.id); setZeigeMarkierenSheet(false) }} style={{ background: '#0a0a0a', border: '1px solid #2a2a2a', color: 'white', borderRadius: '10px', padding: '0.65rem 1rem', cursor: 'pointer', fontSize: '0.85rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: route.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>{route.name || 'Unbenannte Route'}</span>
+                    <span style={{ color: '#ff6b00', fontSize: '0.8rem' }}>{route.setter_grade}</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        }
+      />
 
       {/* ── Archiv Sheet ── */}
       <BottomSheet offen={zeigeArchiv} onClose={() => setZeigeArchiv(false)} titel={`📦 Archiv (${archiviertRouten.length})`}
