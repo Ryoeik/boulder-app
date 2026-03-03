@@ -66,7 +66,7 @@ export function levelAnzeige(level) {
   const farben = {
     1:  { farbe: '#888',    name: 'Anfänger' },
     2:  { farbe: '#66aa66', name: 'Einsteiger' },
-    3:  { farbe: '#44bb88', name: 'Fortgeschritten' },
+    3:  { farbe: '#44bb88', name: 'V6 Platau' },
     4:  { farbe: '#33aacc', name: 'Erfahren' },
     5:  { farbe: '#2299dd', name: 'Könner' },
     6:  { farbe: '#5566ff', name: 'Experte' },

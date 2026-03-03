@@ -14,11 +14,27 @@ function Login() {
 
   // Schritt 1: Code anfordern
   async function codeAnfordern() {
-    setLaden(true)
-    setNachricht('')
+  setLaden(true)
+  setNachricht('')
+
+  // Prüfen ob E-Mail bereits registriert ist
+    const { data: bereitsRegistriert } = await supabase
+      .from('registration_codes')
+      .select('id')
+      .eq('email', email)
+      .eq('used', true)
+      .single()
+
+    if (bereitsRegistriert) {
+      setNachricht('Fehler: Diese E-Mail ist bereits registriert. Bitte einloggen.')
+      setLaden(false)
+      return
+    }
+
     const { error } = await supabase.functions.invoke('send-registration-code', {
       body: { email }
     })
+
     if (error) {
       setNachricht('Fehler: Code konnte nicht gesendet werden.')
     } else {

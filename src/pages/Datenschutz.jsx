@@ -12,7 +12,7 @@ function Datenschutz() {
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h2>1. Allgemeine Hinweise</h2>
         <p style={{ color: '#aaa', lineHeight: '1.7' }}>
-          BoulderApp ist ein privates, nicht-kommerzielles Community-Projekt ohne Gewinnabsicht.
+          "Toter Boulder" ist ein privates, nicht-kommerzielles Community-Projekt ohne Gewinnabsicht.
           Es wird von einer Privatperson betrieben und dient ausschließlich der Boulder-Community
           als Plattform zum Austausch. Es besteht keinerlei Haftung für die Richtigkeit,
           Vollständigkeit oder Aktualität der bereitgestellten Inhalte.
