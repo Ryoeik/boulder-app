@@ -12,18 +12,18 @@ function Login() {
   const [laden, setLaden] = useState(false)
   const [nachricht, setNachricht] = useState('')
 
-  // Schritt 1: Code anfordern
-  async function codeAnfordern() {
-  setLaden(true)
-  setNachricht('')
+    // Schritt 1: Code anfordern
+    async function codeAnfordern() {
+    setLaden(true)
+    setNachricht('')
 
-  // Prüfen ob E-Mail bereits registriert ist
+    // Prüfen ob E-Mail bereits registriert ist
     const { data: bereitsRegistriert } = await supabase
       .from('registration_codes')
       .select('id')
       .eq('email', email)
       .eq('used', true)
-      .single()
+      .maybeSingle() // ← maybeSingle statt single!
 
     if (bereitsRegistriert) {
       setNachricht('Fehler: Diese E-Mail ist bereits registriert. Bitte einloggen.')
