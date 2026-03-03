@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import './index.css'
 
@@ -32,14 +32,25 @@ const PageLoader = () => (
   </div>
 )
 
+// NEU: Schützt alle Routen – leitet nicht eingeloggte User zu /login weiter
+function ProtectedRoute({ session, children }) {
+  // Noch am Laden (session ist null beim ersten Render)
+  if (session === undefined) return <PageLoader />
+  if (!session) return <Navigate to="/login" replace />
+  return children
+}
+
 function App() {
-  const [session, setSession] = useState(null)
+  const [session, setSession] = useState(undefined) // undefined = lädt noch
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session))
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session ?? null))
     return () => subscription.unsubscribe()
   }, [])
+
+  // Wrapper damit session nicht immer mitgegeben werden muss
+  const P = ({ children }) => <ProtectedRoute session={session}>{children}</ProtectedRoute>
 
   return (
     <BrowserRouter>
@@ -47,22 +58,25 @@ function App() {
       <Navbar />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/"                                         element={<Startseite />} />
-          <Route path="/hallen"                                   element={<Hallen />} />
-          <Route path="/profil"                                   element={<Profil session={session} />} />
-          <Route path="/nutzer/:userId"                           element={<NutzerProfil />} />
-          <Route path="/halle/:gymId"                             element={<HalleDetail />} />
-          <Route path="/halle-erstellen"                          element={<HalleErstellen />} />
-          <Route path="/halle/:gymId/einstellungen"               element={<HalleEinstellungen />} />
-          <Route path="/halle/:gymId/sektionen"                   element={<SektionErstellen />} />
-          <Route path="/halle/:gymId/sektion/:sektionId"          element={<SektionDetail />} />
-          <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<WandplanEditor />} />
-          <Route path="/route/:routeId"                           element={<RouteDetail />} />
-          <Route path="/login"                                    element={<Login />} />
-          <Route path="/datenschutz"                              element={<Datenschutz />} />
-          <Route path="/halle/:gymId/nutzer/:userId"              element={<HallenProfil />} />
-          <Route path="/halle/:gymId/ranking"                     element={<Ranking />} />
-          <Route path="/superadmin"                               element={<SuperAdminPanel />} />
+          {/* Öffentliche Routen */}
+          <Route path="/login"       element={<Login />} />
+          <Route path="/datenschutz" element={<Datenschutz />} />
+
+          {/* Geschützte Routen */}
+          <Route path="/"                                         element={<P><Startseite /></P>} />
+          <Route path="/hallen"                                   element={<P><Hallen /></P>} />
+          <Route path="/profil"                                   element={<P><Profil session={session} /></P>} />
+          <Route path="/nutzer/:userId"                           element={<P><NutzerProfil /></P>} />
+          <Route path="/halle/:gymId"                             element={<P><HalleDetail /></P>} />
+          <Route path="/halle-erstellen"                          element={<P><HalleErstellen /></P>} />
+          <Route path="/halle/:gymId/einstellungen"               element={<P><HalleEinstellungen /></P>} />
+          <Route path="/halle/:gymId/sektionen"                   element={<P><SektionErstellen /></P>} />
+          <Route path="/halle/:gymId/sektion/:sektionId"          element={<P><SektionDetail /></P>} />
+          <Route path="/halle/:gymId/sektion/:sektionId/wandplan" element={<P><WandplanEditor /></P>} />
+          <Route path="/route/:routeId"                           element={<P><RouteDetail /></P>} />
+          <Route path="/halle/:gymId/nutzer/:userId"              element={<P><HallenProfil /></P>} />
+          <Route path="/halle/:gymId/ranking"                     element={<P><Ranking /></P>} />
+          <Route path="/superadmin"                               element={<P><SuperAdminPanel /></P>} />
         </Routes>
       </Suspense>
 
