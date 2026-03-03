@@ -10,12 +10,10 @@ function Navbar() {
   const location = useLocation()
 
   useEffect(() => {
-    // Session beim Laden abrufen
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       handleAuthChange(session)
     })
 
-    // Auf Auth-Änderungen hören
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       handleAuthChange(session)
     })
@@ -23,7 +21,6 @@ function Navbar() {
     async function handleAuthChange(session) {
       const user = session?.user ?? null
       setNutzer(user)
-      
       if (user) {
         const { data } = await supabase
           .from('profiles')
@@ -36,7 +33,6 @@ function Navbar() {
       }
     }
 
-    // Klick-Auserhalb-Logik
     function handleClickOutside(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setZeigeMenu(false)
@@ -44,8 +40,6 @@ function Navbar() {
     }
 
     document.addEventListener('mousedown', handleClickOutside)
-
-    // CLEANUP: Verhindert den "Lock not released" Error!
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
       subscription.unsubscribe()
@@ -56,7 +50,6 @@ function Navbar() {
     try {
       await supabase.auth.signOut()
       setZeigeMenu(false)
-      // Leitet den Nutzer zur Startseite und erzwingt einen kompletten Reload
       window.location.href = '/'
     } catch (error) {
       console.error('Fehler beim Ausloggen:', error.message)
@@ -80,26 +73,16 @@ function Navbar() {
           <span style={{ color: '#ff6b00', fontWeight: 'bold', fontSize: '1rem' }}>Toter Boulder</span>
         </Link>
 
-        {/* Menü oben rechts */}
+        {/* Menü-Button oben rechts – immer als Hamburger, nie als Profilbild */}
         <div ref={menuRef} style={{ position: 'relative' }}>
           <button onClick={() => setZeigeMenu(!zeigeMenu)} style={{
-            background: 'transparent', border: 'none',
-            cursor: 'pointer', padding: '0.25rem', borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            background: 'transparent', border: '1px solid #2a2a2a',
+            cursor: 'pointer', padding: '0.4rem 0.6rem', borderRadius: '8px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#aaa', fontSize: '1rem', gap: '0.3rem'
           }}>
-            {profil?.avatar_url ? (
-              <img src={profil.avatar_url} alt="Avatar" style={{
-                width: '32px', height: '32px', borderRadius: '50%',
-                objectFit: 'cover', border: '2px solid #ff6b00'
-              }} />
-            ) : (
-              <div style={{
-                width: '32px', height: '32px', borderRadius: '50%',
-                background: '#1a1a1a', border: '2px solid #2a2a2a',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '1rem', color: 'white'
-              }}>☰</div>
-            )}
+            <span style={{ fontSize: '1rem', letterSpacing: '1px' }}>☰</span>
+            <span style={{ fontSize: '0.75rem', color: '#666' }}>Menü</span>
           </button>
 
           {zeigeMenu && (
@@ -115,13 +98,12 @@ function Navbar() {
                   <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1a1a1a' }}>
                     <div style={{ fontSize: '0.75rem', color: '#555' }}>Eingeloggt als</div>
                     <div style={{ color: 'white', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                        {profil?.username || nutzer.email}
+                      {profil?.username || nutzer.email}
                     </div>
                   </div>
                   <div onClick={ausloggen} style={menuItemStyle}>🚪 Ausloggen</div>
                 </>
               )}
-              {/* Login & Profil hier entfernt, da sie unten in der Leiste sind */}
               <MenuItem to="/datenschutz" onClick={() => setZeigeMenu(false)}>🔒 Datenschutz</MenuItem>
               <MenuItem to="/hallen" onClick={() => setZeigeMenu(false)}>💻 GitHub</MenuItem>
             </div>
@@ -140,18 +122,17 @@ function Navbar() {
         <BottomNavItem to="/" label="Feed" emoji="🏠" aktiv={aktiv('/')} />
         <BottomNavItem to="/hallen" label="Hallen" emoji="🏟️" aktiv={aktiv('/hallen')} />
         {nutzer
-          ? <BottomNavItem to="/profil" label="Profil" emoji="👤" aktiv={aktiv('/profil')} />
+          ? <BottomNavProfilItem to="/profil" label="Profil" aktiv={aktiv('/profil')} avatar={profil?.avatar_url} />
           : <BottomNavItem to="/login" label="Login" emoji="🔑" aktiv={aktiv('/login')} />
         }
       </div>
 
-      {/* Platzhalter, damit Content nicht hinter der Bottom-Leiste verschwindet */}
+      {/* Platzhalter */}
       <div style={{ height: '60px' }} />
     </>
   )
 }
 
-// Untergeordnete Komponenten für sauberen Code
 function BottomNavItem({ to, label, emoji, aktiv }) {
   return (
     <Link to={to} style={{
@@ -159,6 +140,32 @@ function BottomNavItem({ to, label, emoji, aktiv }) {
       gap: '0.15rem', textDecoration: 'none', flex: 1, padding: '0.4rem 0'
     }}>
       <span style={{ fontSize: '1.4rem' }}>{emoji}</span>
+      <span style={{
+        fontSize: '0.65rem',
+        color: aktiv ? '#ff6b00' : '#555',
+        fontWeight: aktiv ? 'bold' : 'normal'
+      }}>{label}</span>
+      {aktiv && <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#ff6b00' }} />}
+    </Link>
+  )
+}
+
+function BottomNavProfilItem({ to, label, aktiv, avatar }) {
+  return (
+    <Link to={to} style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: '0.15rem', textDecoration: 'none', flex: 1, padding: '0.4rem 0'
+    }}>
+      {avatar ? (
+        <img src={avatar} alt="Profil" style={{
+          width: '28px', height: '28px', borderRadius: '50%',
+          objectFit: 'cover',
+          border: aktiv ? '2px solid #ff6b00' : '2px solid #333',
+          transition: 'border-color 0.2s'
+        }} />
+      ) : (
+        <span style={{ fontSize: '1.4rem' }}>👤</span>
+      )}
       <span style={{
         fontSize: '0.65rem',
         color: aktiv ? '#ff6b00' : '#555',
@@ -178,11 +185,11 @@ function MenuItem({ to, onClick, children }) {
 }
 
 const menuItemStyle = {
-  display: 'block', 
+  display: 'block',
   padding: '0.75rem 1rem',
-  color: '#aaa', 
+  color: '#aaa',
   textDecoration: 'none',
-  fontSize: '0.9rem', 
+  fontSize: '0.9rem',
   borderBottom: '1px solid #1a1a1a',
   cursor: 'pointer'
 }
