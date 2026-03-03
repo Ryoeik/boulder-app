@@ -144,22 +144,12 @@ function WandplanEditor() {
   // ── Maus ─────────────────────────────────────────────────────────────────────
   function mausStart(e) {
     e.preventDefault()
-    if (zoomRef.current > 1 && !gewaehlteRoute) {
-      letzterPan.current = { x: e.clientX - panXRef.current, y: e.clientY - panYRef.current }
-    } else {
-      const { x, y } = koordinatenAusProzent(e.clientX, e.clientY)
-      setZieheMarker({ startX: x, startY: y, x, y, width: 0, height: 0 })
-    }
+    // Maus: immer zeichnen (kein Pan-Modus auf Desktop nötig)
+    const { x, y } = koordinatenAusProzent(e.clientX, e.clientY)
+    setZieheMarker({ startX: x, startY: y, x, y, width: 0, height: 0 })
   }
 
   function mausBewegen(e) {
-    if (letzterPan.current) {
-      const nx = e.clientX - letzterPan.current.x
-      const ny = e.clientY - letzterPan.current.y
-      const { x, y } = panGrenzen(nx, ny, zoomRef.current)
-      setPanX(x); setPanY(y)
-      return
-    }
     if (!zieheMarker) return
     e.preventDefault()
     const { x, y } = koordinatenAusProzent(e.clientX, e.clientY)
@@ -170,7 +160,7 @@ function WandplanEditor() {
     }))
   }
 
-  function mausEnde() { letzterPan.current = null; markerFertigstellen() }
+  function mausEnde() { markerFertigstellen() }
 
   // ── Touch ────────────────────────────────────────────────────────────────────
   function pinchAbstand(touches) {
@@ -188,6 +178,7 @@ function WandplanEditor() {
 
   function editorTouchStart(e) {
     if (e.touches.length === 2) {
+      // 2 Finger = Pinch-Zoom, Zeichnen abbrechen
       e.preventDefault()
       const mitte = pinchMitte(e.touches)
       letzterPinch.current = {
@@ -201,14 +192,11 @@ function WandplanEditor() {
       letzterPan.current = null
       setZieheMarker(null)
     } else if (e.touches.length === 1) {
+      // 1 Finger = immer zeichnen (auch im Zoom)
       e.preventDefault()
-      if (zoomRef.current > 1 && !gewaehlteRoute) {
-        letzterPan.current = { x: e.touches[0].clientX - panXRef.current, y: e.touches[0].clientY - panYRef.current }
-      } else {
-        letzterPan.current = null
-        const { x, y } = koordinatenAusProzent(e.touches[0].clientX, e.touches[0].clientY)
-        setZieheMarker({ startX: x, startY: y, x, y, width: 0, height: 0 })
-      }
+      letzterPan.current = null
+      const { x, y } = koordinatenAusProzent(e.touches[0].clientX, e.touches[0].clientY)
+      setZieheMarker({ startX: x, startY: y, x, y, width: 0, height: 0 })
     }
   }
 
@@ -218,11 +206,9 @@ function WandplanEditor() {
       const neuerZoom = Math.max(1, Math.min(5,
         letzterPinch.current.zoom * (pinchAbstand(e.touches) / letzterPinch.current.abstand)
       ))
-
       if (neuerZoom === 1) {
         setZoom(1); setPanX(0); setPanY(0)
       } else {
-        // Zoom um den Pinch-Mittelpunkt
         const wrap = wrapperRef.current
         if (wrap) {
           const rect = wrap.getBoundingClientRect()
@@ -239,20 +225,14 @@ function WandplanEditor() {
         }
         setZoom(neuerZoom)
       }
-    } else if (e.touches.length === 1) {
-      if (letzterPan.current) {
-        const nx = e.touches[0].clientX - letzterPan.current.x
-        const ny = e.touches[0].clientY - letzterPan.current.y
-        const { x, y } = panGrenzen(nx, ny, zoomRef.current)
-        setPanX(x); setPanY(y)
-      } else if (zieheMarker) {
-        const { x, y } = koordinatenAusProzent(e.touches[0].clientX, e.touches[0].clientY)
-        setZieheMarker(prev => ({
-          ...prev,
-          x: Math.min(prev.startX, x), y: Math.min(prev.startY, y),
-          width: Math.abs(x - prev.startX), height: Math.abs(y - prev.startY)
-        }))
-      }
+    } else if (e.touches.length === 1 && zieheMarker) {
+      // 1 Finger bewegt = Rechteck ziehen
+      const { x, y } = koordinatenAusProzent(e.touches[0].clientX, e.touches[0].clientY)
+      setZieheMarker(prev => ({
+        ...prev,
+        x: Math.min(prev.startX, x), y: Math.min(prev.startY, y),
+        width: Math.abs(x - prev.startX), height: Math.abs(y - prev.startY)
+      }))
     }
   }
 
@@ -458,15 +438,15 @@ function WandplanEditor() {
   if (laden) return <div className="container"><p>Lädt...</p></div>
 
   return (
-    <div className="container" style={{ maxWidth: '900px', paddingBottom: '6rem' }}>
+    <div className="container" style={{ maxWidth: '900px', paddingBottom: '6rem', paddingTop: '0.5rem' }}>
       <Link to={`/halle/${gymId}/sektionen`} style={{ color: '#aaa', textDecoration: 'none', fontSize: '0.9rem' }}>
         ← Zurück zu Sektionen
       </Link>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0 1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0 0.75rem' }}>
         <h1 style={{ fontSize: '1.3rem', margin: 0 }}>🗺️ {sektion?.name}</h1>
-        <button className="btn" onClick={speichern} disabled={speichernLaden} style={{ padding: '0.6rem 1.2rem' }}>
-          {gespeichert ? '✅' : speichernLaden ? '⏳' : 'Speichern'}
+        <button className="btn" onClick={speichern} disabled={speichernLaden} style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
+          {gespeichert ? '✅ Gespeichert' : speichernLaden ? '⏳' : '💾 Speichern'}
         </button>
       </div>
 
@@ -502,7 +482,7 @@ function WandplanEditor() {
                 position: 'relative',
                 userSelect: 'none',
                 touchAction: 'none',
-                cursor: zoom > 1 && !gewaehlteRoute ? 'grab' : 'crosshair',
+                cursor: 'crosshair',
                 transform: `scale(${zoom}) translate(${panX / zoom}px, ${panY / zoom}px)`,
                 transformOrigin: 'center center',
                 transition: letzterPinch.current ? 'none' : 'transform 0.1s',
@@ -552,24 +532,25 @@ function WandplanEditor() {
       )}
 
       {/* ── Routen Panel ── */}
-      <div style={{ marginTop: '1.25rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <div style={{ marginTop: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button onClick={() => setZeigeRoutenPanel(!zeigeRoutenPanel)} style={{
-            background: '#1a1a1a', border: '1px solid #2a2a2a', color: 'white',
-            borderRadius: '10px', padding: '0.6rem 1rem', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem'
+            flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: 'white',
+            borderRadius: '10px', padding: '0.55rem 0.75rem', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.85rem'
           }}>
             🧗 Routen ({routen.length}) {zeigeRoutenPanel ? '▲' : '▼'}
           </button>
           <button onClick={() => setZeigeArchiv(true)} style={{
-            background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#888',
-            borderRadius: '10px', padding: '0.6rem 1rem', cursor: 'pointer', fontSize: '0.9rem'
+            flex: 1, background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#888',
+            borderRadius: '10px', padding: '0.55rem 0.75rem', cursor: 'pointer',
+            fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
           }}>
             📦 Archiv ({archiviertRouten.length})
           </button>
           <button onClick={() => setZeigeInfo(true)} style={{
             background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#555',
-            borderRadius: '10px', padding: '0.6rem 1rem', cursor: 'pointer', fontSize: '0.9rem'
+            borderRadius: '10px', padding: '0.55rem 0.65rem', cursor: 'pointer', fontSize: '0.9rem'
           }}>ℹ️</button>
         </div>
 
