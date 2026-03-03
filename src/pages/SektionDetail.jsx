@@ -16,7 +16,7 @@ function SektionDetail() {
 
       const { data: routenData } = await supabase
         .from('routes').select('*').eq('section_id', sektionId).eq('is_active', true)
-        .order('created_at', { ascending: false })
+        .order('name', { ascending: true })
       setRouten(routenData || [])
       setLaden(false)
     }
